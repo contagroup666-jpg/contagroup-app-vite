@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-0: #0b1220;
+  --color-bg-1: #101a2e;
+  --color-bg-2: #16223b;
+  --color-gold: #c9a227;
+  --color-gold-soft: rgba(201,162,39,.5);
+  --color-blue-5: #2d72d2;
+  --color-blue-6: #1e56ab;
+  --font-display: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background: var(--color-bg-0);
+  color: #e7ecf5;
+  font-family: var(--font-display);
+}
+
+/* Foco visible por teclado — nunca lo quitamos, solo lo estilizamos */
+:focus-visible {
+  outline: 2px solid var(--color-blue-5);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+button, a, input, select {
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 8px; }
