@@ -16,6 +16,13 @@ export interface ModuloDef {
 // index.html monolítico mientras se migran uno a uno.
 export const MODULOS: ModuloDef[] = [
   {
+    id: 'admin',
+    label: 'Panel Super Admin',
+    path: '/admin',
+    icono: '🛡️',
+    rolesPermitidos: ['Super Administrador'],
+  },
+  {
     id: 'dashboard',
     label: 'Panel principal',
     path: '/',
