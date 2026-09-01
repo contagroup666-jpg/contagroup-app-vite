@@ -15,6 +15,8 @@ export type Rol =
   | 'Bodeguero'
   | 'Auditor'
 
+export type EtapaLead = 'Prospecto' | 'Contactado' | 'Propuesta' | 'Negociación' | 'Cerrado'
+
 // Forma real de cada elemento del array jsonb `facturas.items` (línea de detalle de la factura).
 export interface FacturaItemJson {
   producto_id?: string
@@ -160,6 +162,44 @@ export interface Database {
           nombre: string
         }
         Update: Partial<Database['public']['Tables']['productos']['Row']>
+      }
+      leads: {
+        Row: {
+          id: string
+          empresa_id: string
+          nombre: string
+          contacto: string | null
+          valor: number
+          etapa: EtapaLead
+          email: string | null
+          fecha_cierre: string | null
+          notas: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['leads']['Row']> & {
+          empresa_id: string
+          nombre: string
+        }
+        Update: Partial<Database['public']['Tables']['leads']['Row']>
+      }
+      actividades: {
+        Row: {
+          id: string
+          empresa_id: string
+          lead_id: string | null
+          tipo: string
+          fecha: string
+          descripcion: string
+          estado: string
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['actividades']['Row']> & {
+          empresa_id: string
+          fecha: string
+          descripcion: string
+        }
+        Update: Partial<Database['public']['Tables']['actividades']['Row']>
       }
       facturas: {
         Row: {

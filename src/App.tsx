@@ -7,6 +7,7 @@ import PlanCuentasPage from './modules/plan-cuentas/PlanCuentasPage'
 import FacturasPage from './modules/facturas/FacturasPage'
 import FacturaDetallePage from './modules/facturas/FacturaDetallePage'
 import ClientesPage from './modules/clientes/ClientesPage'
+import CrmPage from './modules/crm/CrmPage'
 import AdminDashboardPage from './modules/admin/AdminDashboardPage'
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
               <Route path="/facturas" element={<FacturasPage />} />
               <Route path="/facturas/:id" element={<FacturaDetallePage />} />
               <Route path="/clientes" element={<ClientesPage />} />
+              <Route path="/crm" element={<CrmPage />} />
               <Route path="/admin" element={<AdminDashboardPage />} />
             </Route>
           </Routes>

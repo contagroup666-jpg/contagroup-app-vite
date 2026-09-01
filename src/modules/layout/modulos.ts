@@ -49,6 +49,13 @@ export const MODULOS: ModuloDef[] = [
     icono: '👥',
     permisoRequerido: 'ventas',
   },
+  {
+    id: 'crm',
+    label: 'CRM Pipeline',
+    path: '/crm',
+    icono: '🎯',
+    permisoRequerido: 'ventas',
+  },
 ]
 
 export function moduloVisible(modulo: ModuloDef, rol: Rol | undefined, permisos: Record<string, boolean> | undefined) {
