@@ -56,6 +56,20 @@ export const MODULOS: ModuloDef[] = [
     icono: '🎯',
     permisoRequerido: 'ventas',
   },
+  {
+    id: 'pos',
+    label: 'Punto de Venta',
+    path: '/pos',
+    icono: '🧾',
+    permisoRequerido: 'pos',
+  },
+  {
+    id: 'config-contable',
+    label: 'Configuración contable',
+    path: '/config-contable',
+    icono: '⚙️',
+    permisoRequerido: 'contabilidad',
+  },
 ]
 
 export function moduloVisible(modulo: ModuloDef, rol: Rol | undefined, permisos: Record<string, boolean> | undefined) {

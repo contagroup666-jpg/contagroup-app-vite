@@ -17,6 +17,11 @@ export type Rol =
 
 export type EtapaLead = 'Prospecto' | 'Contactado' | 'Propuesta' | 'Negociación' | 'Cerrado'
 
+export interface PagoPos {
+  metodo: 'Efectivo' | 'Tarjeta' | 'Transferencia' | 'Credito'
+  monto: number
+}
+
 // Forma real de cada elemento del array jsonb `facturas.items` (línea de detalle de la factura).
 export interface FacturaItemJson {
   producto_id?: string
@@ -218,7 +223,10 @@ export interface Database {
           forma_pago: string | null
           motivo_anulacion: string | null
           items: FacturaItemJson[]
-          pagos: unknown[]
+          pagos: PagoPos[]
+          turno_id: string | null
+          cajero_id: string | null
+          cajero_nombre: string | null
           created_at: string
         }
         Insert: Partial<Database['public']['Tables']['facturas']['Row']> & {
@@ -227,6 +235,84 @@ export interface Database {
           fecha: string
         }
         Update: Partial<Database['public']['Tables']['facturas']['Row']>
+      }
+      factura_items: {
+        Row: {
+          id: string
+          factura_id: string
+          nombre: string
+          cantidad: number
+          precio: number
+          total: number
+          orden: number
+        }
+        Insert: Partial<Database['public']['Tables']['factura_items']['Row']> & {
+          factura_id: string
+          nombre: string
+        }
+        Update: Partial<Database['public']['Tables']['factura_items']['Row']>
+      }
+      movimientos_inv: {
+        Row: {
+          id: string
+          empresa_id: string
+          producto_id: string
+          tipo: string
+          cantidad: number
+          costo_unitario: number
+          vr_unitario: number
+          fecha: string
+          ref: string | null
+          nota: string | null
+          factura_id: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['movimientos_inv']['Row']> & {
+          empresa_id: string
+          producto_id: string
+          tipo: string
+        }
+        Update: Partial<Database['public']['Tables']['movimientos_inv']['Row']>
+      }
+      pos_turnos: {
+        Row: {
+          id: string
+          empresa_id: string
+          cajero_id: string | null
+          cajero_nombre: string | null
+          fecha_apertura: string
+          monto_inicial: number
+          estado: 'ABIERTO' | 'CERRADO'
+          fecha_cierre: string | null
+          monto_final_declarado: number | null
+          monto_calculado: number | null
+          diferencia: number | null
+          totales_por_metodo: Record<string, number> | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['pos_turnos']['Row']> & {
+          empresa_id: string
+        }
+        Update: Partial<Database['public']['Tables']['pos_turnos']['Row']>
+      }
+      config_cuentas_contables: {
+        Row: {
+          id: string
+          empresa_id: string
+          cuenta_caja_id: string | null
+          cuenta_bancos_id: string | null
+          cuenta_cxc_id: string | null
+          cuenta_inventario_id: string | null
+          cuenta_ventas_id: string | null
+          cuenta_iva_id: string | null
+          cuenta_costo_ventas_id: string | null
+          updated_at: string
+          updated_por: string | null
+        }
+        Insert: Partial<Database['public']['Tables']['config_cuentas_contables']['Row']> & {
+          empresa_id: string
+        }
+        Update: Partial<Database['public']['Tables']['config_cuentas_contables']['Row']>
       }
     }
   }
