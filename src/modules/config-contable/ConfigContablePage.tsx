@@ -39,7 +39,7 @@ export default function ConfigContablePage() {
     async function cargar() {
       setLoading(true)
       const [cuentasRes, configRes] = await Promise.all([
-        supabase.from('plan_cuentas').select('*').order('codigo'),
+        supabase.from('plan_cuentas').select('*').eq('es_detalle', true).order('codigo'),
         supabase.from('config_cuentas_contables').select('*').maybeSingle(),
       ])
       if (!activo) return

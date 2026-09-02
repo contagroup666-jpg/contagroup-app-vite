@@ -13,6 +13,8 @@ import {
 import { useAuth } from '../../context/AuthContext'
 import TablaSkeleton from '../../components/TablaSkeleton'
 import KpiCard from './KpiCard'
+import EmpresasTab from './EmpresasTab'
+import UsuariosTab from './UsuariosTab'
 import {
   obtenerActividadPorEmpresa,
   obtenerResumenGlobal,
@@ -36,6 +38,7 @@ function formatoFechaCorta(fecha: string): string {
 
 export default function AdminDashboardPage() {
   const { perfil } = useAuth()
+  const [tab, setTab] = useState<'monitoreo' | 'empresas' | 'usuarios'>('monitoreo')
   const [resumen, setResumen] = useState<ResumenGlobal | null>(null)
   const [actividadEmpresas, setActividadEmpresas] = useState<ActividadEmpresa[]>([])
   const [tendencia, setTendencia] = useState<PuntoTendencia[]>([])
@@ -92,7 +95,39 @@ export default function AdminDashboardPage() {
         <p className="text-xs text-white/40 mt-1">Visión global de la plataforma — todas las empresas</p>
       </div>
 
-      {error && (
+      <div className="flex gap-1 mb-5 border-b border-white/10">
+        <button
+          onClick={() => setTab('monitoreo')}
+          className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
+            tab === 'monitoreo' ? 'border-[var(--color-blue-5)] text-white' : 'border-transparent text-white/40 hover:text-white/70'
+          }`}
+        >
+          📊 Monitoreo
+        </button>
+        <button
+          onClick={() => setTab('empresas')}
+          className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
+            tab === 'empresas' ? 'border-[var(--color-blue-5)] text-white' : 'border-transparent text-white/40 hover:text-white/70'
+          }`}
+        >
+          🏢 Empresas
+        </button>
+        <button
+          onClick={() => setTab('usuarios')}
+          className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
+            tab === 'usuarios' ? 'border-[var(--color-blue-5)] text-white' : 'border-transparent text-white/40 hover:text-white/70'
+          }`}
+        >
+          👥 Usuarios
+        </button>
+      </div>
+
+      {tab === 'empresas' && <EmpresasTab />}
+      {tab === 'usuarios' && <UsuariosTab />}
+
+      {tab === 'monitoreo' && (
+        <>
+          {error && (
         <p role="alert" className="mb-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
           No se pudieron cargar todos los datos: {error}
         </p>
@@ -238,6 +273,8 @@ export default function AdminDashboardPage() {
               </tbody>
             </table>
           </div>
+        </>
+      )}
         </>
       )}
     </div>
