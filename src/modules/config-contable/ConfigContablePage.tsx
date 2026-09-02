@@ -15,6 +15,8 @@ const CAMPOS: { key: keyof Pick<
   | 'cuenta_ventas_id'
   | 'cuenta_iva_id'
   | 'cuenta_costo_ventas_id'
+  | 'cuenta_cxp_id'
+  | 'cuenta_retenciones_id'
 >; label: string; ayuda: string }[] = [
   { key: 'cuenta_caja_id', label: 'Caja / Efectivo', ayuda: 'Recibe los pagos en efectivo del POS' },
   { key: 'cuenta_bancos_id', label: 'Bancos (Tarjeta / Transferencia)', ayuda: 'Recibe pagos con tarjeta o transferencia' },
@@ -23,6 +25,8 @@ const CAMPOS: { key: keyof Pick<
   { key: 'cuenta_ventas_id', label: 'Ventas / Ingresos', ayuda: 'Se acredita el subtotal de cada venta' },
   { key: 'cuenta_iva_id', label: 'IVA por Pagar', ayuda: 'Se acredita el IVA cobrado en cada venta' },
   { key: 'cuenta_costo_ventas_id', label: 'Costo de Ventas', ayuda: 'Se debita el costo de la mercadería vendida' },
+  { key: 'cuenta_cxp_id', label: 'Cuentas por Pagar', ayuda: 'Se acredita al registrar una compra a crédito' },
+  { key: 'cuenta_retenciones_id', label: 'Retenciones por Pagar', ayuda: 'Se acredita el monto retenido a un proveedor (SRI)' },
 ]
 
 export default function ConfigContablePage() {
@@ -73,6 +77,8 @@ export default function ConfigContablePage() {
       cuenta_ventas_id: config.cuenta_ventas_id || null,
       cuenta_iva_id: config.cuenta_iva_id || null,
       cuenta_costo_ventas_id: config.cuenta_costo_ventas_id || null,
+      cuenta_cxp_id: config.cuenta_cxp_id || null,
+      cuenta_retenciones_id: config.cuenta_retenciones_id || null,
       updated_at: new Date().toISOString(),
       updated_por: perfil.id,
     }

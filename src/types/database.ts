@@ -306,6 +306,8 @@ export interface Database {
           cuenta_ventas_id: string | null
           cuenta_iva_id: string | null
           cuenta_costo_ventas_id: string | null
+          cuenta_cxp_id: string | null
+          cuenta_retenciones_id: string | null
           updated_at: string
           updated_por: string | null
         }
