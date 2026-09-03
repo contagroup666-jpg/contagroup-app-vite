@@ -78,6 +78,13 @@ export const MODULOS: ModuloDef[] = [
     permisoRequerido: 'nomina',
   },
   {
+    id: 'activos-fijos',
+    label: 'Activos Fijos',
+    path: '/activos-fijos',
+    icono: '🏭',
+    permisoRequerido: 'contabilidad',
+  },
+  {
     id: 'config-contable',
     label: 'Configuración contable',
     path: '/config-contable',

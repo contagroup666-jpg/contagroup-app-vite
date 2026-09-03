@@ -433,6 +433,27 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['detalle_nomina']['Row']>
       }
+      activos_fijos: {
+        Row: {
+          id: string
+          empresa_id: string
+          nombre: string
+          categoria: string | null
+          fecha_compra: string
+          valor_compra: number
+          valor_residual: number
+          vida_util_anios: number
+          metodo: string | null
+          estado: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['activos_fijos']['Row']> & {
+          empresa_id: string
+          nombre: string
+          fecha_compra: string
+        }
+        Update: Partial<Database['public']['Tables']['activos_fijos']['Row']>
+      }
     }
   }
 }

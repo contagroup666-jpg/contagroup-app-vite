@@ -29,12 +29,13 @@ export interface ResultadoDecimos {
 }
 
 export interface ResultadoDepreciacion {
+  depreciacionAnual: number
   depreciacionMensual: number
+  mesesTranscurridos: number
   depreciacionAcumulada: number
   valorEnLibros: number
-  mesesTranscurridos: number
-  mesesVidaUtil: number
-  totalmenteDepreciado: boolean
+  porcentajeDepreciado: number
+  vidaUtilAgotada: boolean
 }
 
 async function llamarMotor<T>(ruta: string, body: unknown): Promise<T> {

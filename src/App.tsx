@@ -11,6 +11,7 @@ import CrmPage from './modules/crm/CrmPage'
 import PosPage from './modules/pos/PosPage'
 import ComprasPage from './modules/compras/ComprasPage'
 import NominaPage from './modules/nomina/NominaPage'
+import ActivosFijosPage from './modules/activos-fijos/ActivosFijosPage'
 import ConfigContablePage from './modules/config-contable/ConfigContablePage'
 import AdminDashboardPage from './modules/admin/AdminDashboardPage'
 
@@ -30,6 +31,7 @@ export default function App() {
               <Route path="/pos" element={<PosPage />} />
               <Route path="/compras" element={<ComprasPage />} />
               <Route path="/nomina" element={<NominaPage />} />
+              <Route path="/activos-fijos" element={<ActivosFijosPage />} />
               <Route path="/config-contable" element={<ConfigContablePage />} />
               <Route path="/admin" element={<AdminDashboardPage />} />
             </Route>
