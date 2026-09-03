@@ -71,6 +71,13 @@ export const MODULOS: ModuloDef[] = [
     permisoRequerido: 'contabilidad',
   },
   {
+    id: 'nomina',
+    label: 'Nómina RRHH',
+    path: '/nomina',
+    icono: '💼',
+    permisoRequerido: 'nomina',
+  },
+  {
     id: 'config-contable',
     label: 'Configuración contable',
     path: '/config-contable',

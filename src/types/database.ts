@@ -369,6 +369,70 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['proveedores']['Row']>
       }
+      empleados: {
+        Row: {
+          id: string
+          empresa_id: string
+          nombre: string
+          cedula: string | null
+          cargo: string | null
+          salario: number
+          fecha_ingreso: string | null
+          telefono: string | null
+          email: string | null
+          tipo_contrato: string | null
+          banco: string | null
+          num_cuenta: string | null
+          tipo_cuenta: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['empleados']['Row']> & {
+          empresa_id: string
+          nombre: string
+        }
+        Update: Partial<Database['public']['Tables']['empleados']['Row']>
+      }
+      nomina: {
+        Row: {
+          id: string
+          empresa_id: string
+          periodo: string
+          cant_empleados: number
+          total_bruto: number
+          total_iess: number
+          total_neto: number
+          estado: string
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['nomina']['Row']> & {
+          empresa_id: string
+          periodo: string
+        }
+        Update: Partial<Database['public']['Tables']['nomina']['Row']>
+      }
+      detalle_nomina: {
+        Row: {
+          id: string
+          empresa_id: string
+          empleado_id: string
+          codigo: string
+          descripcion: string
+          tipo: string
+          valor: number
+          fecha: string
+          periodo: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['detalle_nomina']['Row']> & {
+          empresa_id: string
+          empleado_id: string
+          codigo: string
+          descripcion: string
+          tipo: string
+          fecha: string
+        }
+        Update: Partial<Database['public']['Tables']['detalle_nomina']['Row']>
+      }
     }
   }
 }
