@@ -316,6 +316,59 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['config_cuentas_contables']['Row']>
       }
+      compras: {
+        Row: {
+          id: string
+          empresa_id: string
+          proveedor_id: string
+          numero: string
+          fecha: string
+          fecha_registro: string | null
+          fecha_vencimiento: string | null
+          tipo_comprobante: string
+          autorizacion: string | null
+          sustento: string | null
+          tipo_compra: string
+          item_id: string | null
+          cuenta_id: string | null
+          categoria: string | null
+          base0: number
+          baseiva: number
+          iva: number
+          total: number
+          concepto: string | null
+          estado: string
+          fecha_pago: string | null
+          forma_pago: string | null
+          retencion_id: string | null
+          monto_retenido: number
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['compras']['Row']> & {
+          empresa_id: string
+          proveedor_id: string
+          numero: string
+          fecha: string
+        }
+        Update: Partial<Database['public']['Tables']['compras']['Row']>
+      }
+      proveedores: {
+        Row: {
+          id: string
+          empresa_id: string
+          nombre: string
+          ruc: string | null
+          tipo: string
+          email: string | null
+          telefono: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['proveedores']['Row']> & {
+          empresa_id: string
+          nombre: string
+        }
+        Update: Partial<Database['public']['Tables']['proveedores']['Row']>
+      }
     }
   }
 }

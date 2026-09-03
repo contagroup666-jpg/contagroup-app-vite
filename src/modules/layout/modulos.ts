@@ -64,6 +64,13 @@ export const MODULOS: ModuloDef[] = [
     permisoRequerido: 'pos',
   },
   {
+    id: 'compras',
+    label: 'Compras',
+    path: '/compras',
+    icono: '🛒',
+    permisoRequerido: 'contabilidad',
+  },
+  {
     id: 'config-contable',
     label: 'Configuración contable',
     path: '/config-contable',

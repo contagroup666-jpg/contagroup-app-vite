@@ -9,6 +9,7 @@ import FacturaDetallePage from './modules/facturas/FacturaDetallePage'
 import ClientesPage from './modules/clientes/ClientesPage'
 import CrmPage from './modules/crm/CrmPage'
 import PosPage from './modules/pos/PosPage'
+import ComprasPage from './modules/compras/ComprasPage'
 import ConfigContablePage from './modules/config-contable/ConfigContablePage'
 import AdminDashboardPage from './modules/admin/AdminDashboardPage'
 
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="/clientes" element={<ClientesPage />} />
               <Route path="/crm" element={<CrmPage />} />
               <Route path="/pos" element={<PosPage />} />
+              <Route path="/compras" element={<ComprasPage />} />
               <Route path="/config-contable" element={<ConfigContablePage />} />
               <Route path="/admin" element={<AdminDashboardPage />} />
             </Route>
