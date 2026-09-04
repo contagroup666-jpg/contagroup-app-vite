@@ -67,23 +67,39 @@ export default function EmpresasTab() {
     setGuardando(true)
     setErrorForm(null)
 
-    const payload = {
-      nombre: form.nombre.trim(),
-      ruc: form.ruc.trim() || null,
-      moneda: form.moneda,
-      regimen: form.regimen,
-      estado: form.estado,
-      iva_porcentaje: ivaPct,
-    }
-
-    const resultado = editando
-      ? await supabase.from('empresas').update(payload).eq('id', editando.id)
-      : await supabase.from('empresas').insert(payload)
-
-    setGuardando(false)
-    if (resultado.error) {
-      setErrorForm(resultado.error.message)
-      return
+    if (editando) {
+      const { error: err } = await supabase
+        .from('empresas')
+        .update({
+          nombre: form.nombre.trim(),
+          ruc: form.ruc.trim() || null,
+          moneda: form.moneda,
+          regimen: form.regimen,
+          estado: form.estado,
+          iva_porcentaje: ivaPct,
+        })
+        .eq('id', editando.id)
+      setGuardando(false)
+      if (err) {
+        setErrorForm(err.message)
+        return
+      }
+    } else {
+      // Usa la RPC en vez de un insert directo: crea la empresa Y le siembra
+      // el plan de cuentas base + config_cuentas_contables en el mismo paso,
+      // para que quede lista para facturar/vender de inmediato.
+      const { error: err } = await supabase.rpc('crear_empresa_super_admin', {
+        p_nombre: form.nombre.trim(),
+        p_ruc: form.ruc.trim() || null,
+        p_moneda: form.moneda,
+        p_regimen: form.regimen,
+        p_iva_porcentaje: ivaPct,
+      })
+      setGuardando(false)
+      if (err) {
+        setErrorForm(err.message)
+        return
+      }
     }
     setMostrarForm(false)
     await cargar()
