@@ -23,6 +23,13 @@ export const MODULOS: ModuloDef[] = [
     rolesPermitidos: ['Super Administrador'],
   },
   {
+    id: 'usuarios',
+    label: 'Usuarios y Roles',
+    path: '/usuarios',
+    icono: '👤',
+    rolesPermitidos: ['Admin Empresa', 'Contador General'],
+  },
+  {
     id: 'dashboard',
     label: 'Panel principal',
     path: '/',

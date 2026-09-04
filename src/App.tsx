@@ -14,6 +14,7 @@ import NominaPage from './modules/nomina/NominaPage'
 import ActivosFijosPage from './modules/activos-fijos/ActivosFijosPage'
 import ConfigContablePage from './modules/config-contable/ConfigContablePage'
 import AdminDashboardPage from './modules/admin/AdminDashboardPage'
+import UsuariosPage from './modules/usuarios/UsuariosPage'
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/activos-fijos" element={<ActivosFijosPage />} />
               <Route path="/config-contable" element={<ConfigContablePage />} />
               <Route path="/admin" element={<AdminDashboardPage />} />
+              <Route path="/usuarios" element={<UsuariosPage />} />
             </Route>
           </Routes>
         </RequireAuth>
