@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { calcularNominaMensual, calcularDecimos } from '../../lib/motorContable'
+import { ejecutarEnLotes } from '../../lib/concurrencia'
+
+// Máximo de empleados calculados en paralelo por lote. El motor contable
+// no tiene concurrencia infinita (rate limit de 120 req/min en /api/nomina),
+// así que en vez de mandar todos los empleados a la vez o uno por uno,
+// se procesan en tandas pequeñas.
+const TAMANO_LOTE_NOMINA = 5
 import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
@@ -170,9 +177,16 @@ export default function NominaPage() {
       const filasDetalle: Database['public']['Tables']['detalle_nomina']['Insert'][] = []
       const fechaCorte = new Date(anio, mes - 1, 1).toISOString().slice(0, 10)
 
-      for (const emp of empleados) {
+      // Se calcula en lotes de TAMANO_LOTE_NOMINA en paralelo en vez de uno
+      // por uno: con muchos empleados es notablemente más rápido, y con
+      // pocos el comportamiento es idéntico al secuencial de antes.
+      const resultados = await ejecutarEnLotes(empleados, TAMANO_LOTE_NOMINA, async (emp) => {
         const meses = mesesEntre(emp.fecha_ingreso ?? fechaCorte, new Date(anio, mes - 1, 1))
         const resultado = await calcularNominaMensual({ sueldoMensual: emp.salario, mesesAntiguedad: meses })
+        return { emp, resultado }
+      })
+
+      for (const { emp, resultado } of resultados) {
         totalBruto += resultado.ingresos.totalIngresos
         totalIess += resultado.descuentos.aportePersonalIESS
         totalNeto += resultado.netoAPagar
