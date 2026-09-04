@@ -4,6 +4,7 @@ import type { Database, Rol } from '../../types/database'
 
 type Usuario = Database['public']['Tables']['usuarios']['Row']
 type Empresa = Database['public']['Tables']['empresas']['Row']
+type Acceso = Database['public']['Tables']['accesos_multiempresa']['Row']
 
 const ROLES: Rol[] = [
   'Super Administrador',
@@ -37,6 +38,7 @@ const VACIO = {
 export default function UsuariosTab() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [empresas, setEmpresas] = useState<Empresa[]>([])
+  const [accesos, setAccesos] = useState<Acceso[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,9 +50,10 @@ export default function UsuariosTab() {
 
   async function cargar() {
     setLoading(true)
-    const [usuariosRes, empresasRes] = await Promise.all([
+    const [usuariosRes, empresasRes, accesosRes] = await Promise.all([
       supabase.from('usuarios').select('*').order('nombre'),
       supabase.from('empresas').select('*').order('nombre'),
+      supabase.from('accesos_multiempresa').select('*').eq('estado', 'Activo'),
     ])
     if (usuariosRes.error) setError(usuariosRes.error.message)
     else {
@@ -58,6 +61,7 @@ export default function UsuariosTab() {
       setError(null)
     }
     setEmpresas((empresasRes.data ?? []) as unknown as Empresa[])
+    setAccesos((accesosRes.data ?? []) as unknown as Acceso[])
     setLoading(false)
   }
 
@@ -220,6 +224,54 @@ export default function UsuariosTab() {
           </table>
         </div>
       )}
+
+      {(() => {
+        const contadores = usuarios.filter((u) => u.rol === 'Contador General' || u.rol === 'Contador Auxiliar')
+        if (contadores.length === 0) return null
+        return (
+          <div className="mt-6 rounded-2xl border border-white/10 overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+              <p className="text-sm font-semibold text-white">Contadores multiempresa</p>
+              <p className="text-xs text-white/40 mt-0.5">Qué empresas atiende cada Contador General/Auxiliar</p>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-white/5 text-left text-white/50 text-[11px] uppercase tracking-wide">
+                  <th className="px-4 py-2 font-medium">Nombre</th>
+                  <th className="px-4 py-2 font-medium">Tipo</th>
+                  <th className="px-4 py-2 font-medium text-right">Cupo</th>
+                  <th className="px-4 py-2 font-medium text-right"># Empresas</th>
+                  <th className="px-4 py-2 font-medium">Empresas con acceso</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contadores.map((c) => {
+                  const suyas = accesos.filter((a) => a.usuario_id === c.id)
+                  const nombresEmp = suyas.map((a) => nombreEmpresa(a.empresa_id)).filter((n) => n !== '—')
+                  return (
+                    <tr key={c.id} className="border-t border-white/5 hover:bg-white/[0.03]">
+                      <td className="px-4 py-2.5 text-white">
+                        {c.nombre}
+                        <div className="text-[11px] text-white/40">{c.email}</div>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-white/10 text-white/60">
+                          {c.rol === 'Contador General' ? 'General' : 'Auxiliar'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-white/60 text-xs">
+                        {c.rol === 'Contador General' ? (c.cupo_empresas ?? <span className="text-white/30">Sin cupo</span>) : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-white font-medium text-xs">{suyas.length}</td>
+                      <td className="px-4 py-2.5 text-white/50 text-xs">{nombresEmp.join(', ') || '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
 
       {mostrarForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto" onClick={() => setMostrarForm(false)}>

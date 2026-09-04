@@ -3,13 +3,16 @@ import { supabase } from '../../lib/supabaseClient'
 import type { Database } from '../../types/database'
 
 type Empresa = Database['public']['Tables']['empresas']['Row']
+type Usuario = Database['public']['Tables']['usuarios']['Row']
 
 const VACIO = { nombre: '', ruc: '', moneda: 'USD', regimen: 'General', estado: 'Activa', iva_porcentaje: '12' }
 
 export default function EmpresasTab() {
   const [empresas, setEmpresas] = useState<Empresa[]>([])
+  const [adminsPorEmpresa, setAdminsPorEmpresa] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [cambiandoEstado, setCambiandoEstado] = useState<string | null>(null)
 
   const [editando, setEditando] = useState<Empresa | null>(null)
   const [form, setForm] = useState(VACIO)
@@ -19,13 +22,33 @@ export default function EmpresasTab() {
 
   async function cargar() {
     setLoading(true)
-    const { data, error: err } = await supabase.from('empresas').select('*').order('nombre')
-    if (err) setError(err.message)
+    const [empresasRes, adminsRes] = await Promise.all([
+      supabase.from('empresas').select('*').order('nombre'),
+      supabase.from('usuarios').select('nombre, empresa_id').eq('rol', 'Admin Empresa'),
+    ])
+    if (empresasRes.error) setError(empresasRes.error.message)
     else {
-      setEmpresas((data ?? []) as unknown as Empresa[])
+      setEmpresas((empresasRes.data ?? []) as unknown as Empresa[])
       setError(null)
     }
+    const mapa: Record<string, string> = {}
+    ;((adminsRes.data ?? []) as unknown as Pick<Usuario, 'nombre' | 'empresa_id'>[]).forEach((u) => {
+      if (u.empresa_id) mapa[u.empresa_id] = u.nombre
+    })
+    setAdminsPorEmpresa(mapa)
     setLoading(false)
+  }
+
+  async function handleToggleEstado(e: Empresa) {
+    const nuevoEstado = e.estado === 'Activa' ? 'Inactiva' : 'Activa'
+    setCambiandoEstado(e.id)
+    const { error: err } = await supabase.from('empresas').update({ estado: nuevoEstado }).eq('id', e.id)
+    setCambiandoEstado(null)
+    if (err) {
+      setError(err.message)
+      return
+    }
+    await cargar()
   }
 
   useEffect(() => {
@@ -144,6 +167,7 @@ export default function EmpresasTab() {
                 <th className="px-4 py-2 font-medium">RUC</th>
                 <th className="px-4 py-2 font-medium">Régimen</th>
                 <th className="px-4 py-2 font-medium">Moneda</th>
+                <th className="px-4 py-2 font-medium">Admin asignado</th>
                 <th className="px-4 py-2 font-medium">Estado</th>
                 <th className="px-4 py-2 font-medium"></th>
               </tr>
@@ -155,14 +179,24 @@ export default function EmpresasTab() {
                   <td className="px-4 py-2.5 text-white/60 text-xs">{e.ruc || '—'}</td>
                   <td className="px-4 py-2.5 text-white/60 text-xs">{e.regimen || '—'}</td>
                   <td className="px-4 py-2.5 text-white/60 text-xs">{e.moneda}</td>
+                  <td className="px-4 py-2.5 text-xs">
+                    {adminsPorEmpresa[e.id] ? (
+                      <span className="text-white/60">{adminsPorEmpresa[e.id]}</span>
+                    ) : (
+                      <span className="text-amber-400/80">⚠ Sin asignar</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5">
-                    <span
-                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                        e.estado === 'Activa' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white/10 text-white/40'
+                    <button
+                      onClick={() => handleToggleEstado(e)}
+                      disabled={cambiandoEstado === e.id}
+                      title={e.estado === 'Activa' ? 'Clic para desactivar' : 'Clic para activar'}
+                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded disabled:opacity-50 transition-colors ${
+                        e.estado === 'Activa' ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25' : 'bg-white/10 text-white/40 hover:bg-white/20'
                       }`}
                     >
-                      {e.estado}
-                    </span>
+                      {cambiandoEstado === e.id ? '…' : e.estado}
+                    </button>
                   </td>
                   <td className="px-4 py-2.5 text-right whitespace-nowrap">
                     <button onClick={() => abrirEditar(e)} className="text-[11px] text-white/50 hover:text-white mr-3">

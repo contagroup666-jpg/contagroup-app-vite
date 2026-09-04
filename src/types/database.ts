@@ -10,6 +10,7 @@ export type Rol =
   | 'Contador'
   | 'Cajero'
   | 'Contador General'
+  | 'Contador Auxiliar'
   | 'Contador de Empresa'
   | 'Jefe de Nómina'
   | 'Bodeguero'

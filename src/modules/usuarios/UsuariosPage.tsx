@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
-import type { Database, Rol } from '../../types/database'
+import type { Database } from '../../types/database'
 
 type Usuario = Database['public']['Tables']['usuarios']['Row']
 
@@ -364,7 +364,7 @@ function ContadorAuxiliarSection({ perfil }: { perfil: Usuario }) {
       .from('usuarios')
       .select('*')
       .eq('supervisor_id', perfil.id)
-      .eq('rol', 'Contador Auxiliar' as Rol)
+      .eq('rol', 'Contador Auxiliar')
       .maybeSingle()
     if (err) setError(err.message)
     setAuxiliar((data ?? null) as unknown as Usuario | null)
