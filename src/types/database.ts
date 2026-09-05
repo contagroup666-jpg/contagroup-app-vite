@@ -319,6 +319,70 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['pos_devoluciones']['Row']>
       }
+      movimientos_caja: {
+        Row: {
+          id: string
+          empresa_id: string
+          tipo: 'apertura' | 'ingreso' | 'egreso' | 'deposito'
+          monto: number
+          concepto: string | null
+          referencia: string | null
+          fecha: string
+          hora: string | null
+          cerrada: boolean
+          cuenta_contrapartida_id: string | null
+          cuenta_bancaria_id: string | null
+          asiento_id: string | null
+          creado_por: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['movimientos_caja']['Row']> & {
+          empresa_id: string
+          tipo: string
+          fecha: string
+        }
+        Update: Partial<Database['public']['Tables']['movimientos_caja']['Row']>
+      }
+      cuentas_bancarias: {
+        Row: {
+          id: string
+          empresa_id: string
+          banco: string
+          tipo_cuenta: string
+          numero_cuenta: string
+          tipo_titular: 'empresa' | 'empleado' | 'proveedor' | 'cliente'
+          titular_id: string | null
+          titular_nombre: string | null
+          referencia: string | null
+          saldo: number
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['cuentas_bancarias']['Row']> & {
+          empresa_id: string
+          banco: string
+          numero_cuenta: string
+        }
+        Update: Partial<Database['public']['Tables']['cuentas_bancarias']['Row']>
+      }
+      cierres_caja: {
+        Row: {
+          id: string
+          empresa_id: string
+          fecha: string
+          hora_cierre: string | null
+          saldo_apertura: number
+          total_ingresos: number
+          total_egresos: number
+          total_depositos: number
+          saldo_final: number
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['cierres_caja']['Row']> & {
+          empresa_id: string
+          fecha: string
+        }
+        Update: Partial<Database['public']['Tables']['cierres_caja']['Row']>
+      }
       config_cuentas_contables: {
         Row: {
           id: string

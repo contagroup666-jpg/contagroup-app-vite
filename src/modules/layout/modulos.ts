@@ -85,6 +85,13 @@ export const MODULOS: ModuloDef[] = [
     permisoRequerido: 'contabilidad',
   },
   {
+    id: 'tesoreria',
+    label: 'Tesorería',
+    path: '/tesoreria',
+    icono: '🏦',
+    permisoRequerido: 'contabilidad',
+  },
+  {
     id: 'retenciones',
     label: 'Retenciones',
     path: '/retenciones',

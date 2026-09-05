@@ -12,6 +12,7 @@ import PosPage from './modules/pos/PosPage'
 import ComprasPage from './modules/compras/ComprasPage'
 import CxCPage from './modules/cxc/CxCPage'
 import CajaChicaPage from './modules/caja-chica/CajaChicaPage'
+import TesoreriaPage from './modules/tesoreria/TesoreriaPage'
 import RetencionesPage from './modules/retenciones/RetencionesPage'
 import NominaPage from './modules/nomina/NominaPage'
 import ActivosFijosPage from './modules/activos-fijos/ActivosFijosPage'
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="/compras" element={<ComprasPage />} />
               <Route path="/cxc" element={<CxCPage />} />
               <Route path="/caja-chica" element={<CajaChicaPage />} />
+              <Route path="/tesoreria" element={<TesoreriaPage />} />
               <Route path="/retenciones" element={<RetencionesPage />} />
               <Route path="/nomina" element={<NominaPage />} />
               <Route path="/activos-fijos" element={<ActivosFijosPage />} />
