@@ -390,6 +390,52 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['cxc_abonos']['Row']>
       }
+      caja_chica: {
+        Row: {
+          id: string
+          empresa_id: string
+          nombre: string
+          cuenta_id: string
+          monto_fondo: number
+          saldo_actual: number
+          responsable_id: string | null
+          estado: string
+          fecha_apertura: string
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['caja_chica']['Row']> & {
+          empresa_id: string
+          nombre: string
+          cuenta_id: string
+          monto_fondo: number
+        }
+        Update: Partial<Database['public']['Tables']['caja_chica']['Row']>
+      }
+      caja_chica_movimientos: {
+        Row: {
+          id: string
+          caja_chica_id: string
+          empresa_id: string
+          tipo: 'Apertura' | 'Gasto' | 'Reposicion' | 'Ajuste'
+          concepto: string
+          beneficiario: string | null
+          cuenta_contrapartida_id: string | null
+          monto: number
+          fecha: string
+          asiento_id: string | null
+          creado_por: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['caja_chica_movimientos']['Row']> & {
+          caja_chica_id: string
+          empresa_id: string
+          tipo: string
+          concepto: string
+          monto: number
+          fecha: string
+        }
+        Update: Partial<Database['public']['Tables']['caja_chica_movimientos']['Row']>
+      }
       compras: {
         Row: {
           id: string

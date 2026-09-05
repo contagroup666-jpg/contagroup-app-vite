@@ -78,6 +78,13 @@ export const MODULOS: ModuloDef[] = [
     permisoRequerido: 'ventas',
   },
   {
+    id: 'caja-chica',
+    label: 'Fondo Caja Chica',
+    path: '/caja-chica',
+    icono: '🪙',
+    permisoRequerido: 'contabilidad',
+  },
+  {
     id: 'retenciones',
     label: 'Retenciones',
     path: '/retenciones',
