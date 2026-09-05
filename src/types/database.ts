@@ -317,6 +317,33 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['config_cuentas_contables']['Row']>
       }
+      retenciones: {
+        Row: {
+          id: string
+          empresa_id: string
+          proveedor_id: string
+          numero: string
+          fecha: string
+          base_iva: number
+          pct_iva: number
+          ret_iva: number
+          base_renta: number
+          pct_renta: number
+          ret_renta: number
+          total_retenido: number
+          factura_ref: string | null
+          autorizacion: string | null
+          compra_id: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['retenciones']['Row']> & {
+          empresa_id: string
+          proveedor_id: string
+          numero: string
+          fecha: string
+        }
+        Update: Partial<Database['public']['Tables']['retenciones']['Row']>
+      }
       cxc_cargos: {
         Row: {
           id: string
