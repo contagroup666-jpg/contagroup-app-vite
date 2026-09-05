@@ -296,6 +296,29 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['pos_turnos']['Row']>
       }
+      pos_devoluciones: {
+        Row: {
+          id: string
+          empresa_id: string
+          venta_id: string | null
+          turno_id: string | null
+          fecha: string
+          items: { producto_id: string; nombre: string; cantidad: number; costo: number; precio: number }[]
+          motivo: string | null
+          usuario: string | null
+          monto_devuelto: number
+          metodo_reembolso: string | null
+          asiento_id: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['pos_devoluciones']['Row']> & {
+          empresa_id: string
+          fecha: string
+          items: Database['public']['Tables']['pos_devoluciones']['Row']['items']
+          monto_devuelto: number
+        }
+        Update: Partial<Database['public']['Tables']['pos_devoluciones']['Row']>
+      }
       config_cuentas_contables: {
         Row: {
           id: string

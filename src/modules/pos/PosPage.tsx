@@ -3,14 +3,16 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
 import { crearAsiento } from '../../lib/contabilidad'
 import { useAuth } from '../../context/AuthContext'
-import type { Database, PagoPos } from '../../types/database'
+import type { Database, FacturaItemJson, PagoPos } from '../../types/database'
 
 type Producto = Database['public']['Tables']['productos']['Row']
 type Turno = Database['public']['Tables']['pos_turnos']['Row']
 type Config = Database['public']['Tables']['config_cuentas_contables']['Row']
+type Factura = Database['public']['Tables']['facturas']['Row']
 
 type TipoDoc = 'NOTA_VENTA' | 'FACTURA'
 type ItemCarrito = { producto_id: string; nombre: string; precio: number; costo: number; cantidad: number }
+type ItemDevolucion = FacturaItemJson & { producto_id: string; yaDevuelta: number; disponible: number; marcada: boolean; cantidadDevolver: number }
 
 function fmt(n: number) {
   return new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(n || 0)
@@ -44,6 +46,18 @@ export default function PosPage() {
   const [mostrarCierre, setMostrarCierre] = useState(false)
   const [contado, setContado] = useState('')
   const [cerrando, setCerrando] = useState(false)
+
+  const [mostrarDevolucion, setMostrarDevolucion] = useState(false)
+  const [devNumero, setDevNumero] = useState('')
+  const [buscandoDev, setBuscandoDev] = useState(false)
+  const [errorBusquedaDev, setErrorBusquedaDev] = useState<string | null>(null)
+  const [ventaDev, setVentaDev] = useState<Factura | null>(null)
+  const [itemsDev, setItemsDev] = useState<ItemDevolucion[]>([])
+  const [motivoDev, setMotivoDev] = useState('')
+  const [metodoReembolsoDev, setMetodoReembolsoDev] = useState<PagoPos['metodo']>('Efectivo')
+  const [procesandoDev, setProcesandoDev] = useState(false)
+  const [errorDev, setErrorDev] = useState<string | null>(null)
+  const [okDev, setOkDev] = useState<string | null>(null)
 
   async function cargar() {
     if (!empresaId) {
@@ -373,6 +387,163 @@ export default function PosPage() {
     await cargar()
   }
 
+  function abrirDevolucion() {
+    setDevNumero('')
+    setVentaDev(null)
+    setItemsDev([])
+    setMotivoDev('')
+    setMetodoReembolsoDev('Efectivo')
+    setErrorBusquedaDev(null)
+    setErrorDev(null)
+    setOkDev(null)
+    setMostrarDevolucion(true)
+  }
+
+  async function buscarVentaDevolucion() {
+    if (!empresaId || !devNumero.trim()) return
+    setBuscandoDev(true)
+    setErrorBusquedaDev(null)
+    setVentaDev(null)
+    setItemsDev([])
+    const { data: f, error: fErr } = await supabase
+      .from('facturas')
+      .select('*')
+      .eq('empresa_id', empresaId)
+      .eq('numero', devNumero.trim())
+      .eq('origen', 'POS')
+      .maybeSingle()
+    if (fErr || !f) {
+      setBuscandoDev(false)
+      setErrorBusquedaDev('No se encontró esa venta.')
+      return
+    }
+    const factura = f as unknown as Factura
+    // Sumamos lo ya devuelto de esta venta (por producto) para no permitir
+    // devolver más unidades de las que realmente quedan por devolver —
+    // el legacy no validaba esto y permitía devolver el mismo ítem varias veces.
+    const { data: devsPrevias } = await supabase.from('pos_devoluciones').select('items').eq('venta_id', factura.id)
+    const yaDevueltoPorProducto = new Map<string, number>()
+    ;(devsPrevias ?? []).forEach((d) => {
+      const items = (d as { items: { producto_id: string; cantidad: number }[] }).items || []
+      items.forEach((it) => yaDevueltoPorProducto.set(it.producto_id, (yaDevueltoPorProducto.get(it.producto_id) || 0) + it.cantidad))
+    })
+    const items: ItemDevolucion[] = (factura.items || [])
+      .filter((it) => it.producto_id)
+      .map((it) => {
+        const yaDevuelta = yaDevueltoPorProducto.get(it.producto_id!) || 0
+        const disponible = Math.max(0, it.cantidad - yaDevuelta)
+        return { ...it, producto_id: it.producto_id!, yaDevuelta, disponible, marcada: disponible > 0, cantidadDevolver: disponible }
+      })
+    setVentaDev(factura)
+    setItemsDev(items)
+    setMetodoReembolsoDev((factura.pagos?.[0]?.metodo as PagoPos['metodo']) || 'Efectivo')
+    setBuscandoDev(false)
+  }
+
+  const totalDev = useMemo(() => {
+    const base = itemsDev.filter((i) => i.marcada).reduce((a, i) => a + i.precio * i.cantidadDevolver, 0)
+    const costo = itemsDev.filter((i) => i.marcada).reduce((a, i) => a + (i.costo || 0) * i.cantidadDevolver, 0)
+    return { base, iva: base * IVA_RATE, total: base * (1 + IVA_RATE), costo }
+  }, [itemsDev])
+
+  async function confirmarDevolucion() {
+    if (!empresaId || !ventaDev) return
+    const seleccion = itemsDev.filter((i) => i.marcada && i.cantidadDevolver > 0)
+    if (seleccion.length === 0) return setErrorDev('Selecciona al menos un producto a devolver.')
+    for (const it of seleccion) {
+      if (it.cantidadDevolver > it.disponible) return setErrorDev(`No puedes devolver más de ${it.disponible} de "${it.nombre}".`)
+    }
+
+    setProcesandoDev(true)
+    setErrorDev(null)
+    try {
+      for (const it of seleccion) {
+        const { data: p } = await supabase.from('productos').select('*').eq('id', it.producto_id).maybeSingle()
+        const prod = p as unknown as Producto | null
+        if (prod) {
+          await supabase.from('productos').update({ stock: (prod.stock || 0) + it.cantidadDevolver }).eq('id', it.producto_id)
+        }
+        await supabase.from('movimientos_inv').insert({
+          empresa_id: empresaId,
+          producto_id: it.producto_id,
+          tipo: 'entrada',
+          cantidad: it.cantidadDevolver,
+          costo_unitario: it.costo || 0,
+          vr_unitario: it.costo || 0,
+          ref: 'DEVOLUCION',
+          factura_id: String(ventaDev.id),
+          nota: `Devolución de ${ventaDev.numero}`,
+        })
+      }
+
+      const { base: baseDev, iva: ivaDev, total: montoDev, costo: costoDev } = totalDev
+
+      const { data: devInsertada, error: devErr } = await supabase
+        .from('pos_devoluciones')
+        .insert({
+          empresa_id: empresaId,
+          venta_id: ventaDev.id,
+          turno_id: ventaDev.turno_id,
+          fecha: new Date().toISOString(),
+          items: seleccion.map((i) => ({ producto_id: i.producto_id, nombre: i.nombre, cantidad: i.cantidadDevolver, costo: i.costo || 0, precio: i.precio })),
+          motivo: motivoDev.trim() || null,
+          usuario: perfil?.nombre ?? '—',
+          monto_devuelto: montoDev,
+          metodo_reembolso: metodoReembolsoDev,
+        })
+        .select()
+        .single()
+      if (devErr) throw new Error(devErr.message)
+
+      const necesita: string[] = []
+      if (!config?.cuenta_ventas_id) necesita.push('Ventas')
+      if (!config?.cuenta_iva_id) necesita.push('IVA por Pagar')
+      if (costoDev > 0 && (!config?.cuenta_inventario_id || !config?.cuenta_costo_ventas_id)) necesita.push('Inventario/Costo de Ventas')
+      if (metodoReembolsoDev === 'Efectivo' && !config?.cuenta_caja_id) necesita.push('Caja')
+      if ((metodoReembolsoDev === 'Tarjeta' || metodoReembolsoDev === 'Transferencia') && !config?.cuenta_bancos_id) necesita.push('Bancos')
+      if (metodoReembolsoDev === 'Credito' && !config?.cuenta_cxc_id) necesita.push('Cuentas por Cobrar')
+
+      if (necesita.length > 0) {
+        setOkDev(`Devolución registrada, pero NO se contabilizó: falta configurar ${necesita.join(', ')} en Configuración contable.`)
+      } else {
+        const lineas = [
+          { cuenta_id: config!.cuenta_ventas_id!, debe: baseDev, haber: 0 },
+          ...(ivaDev > 0 ? [{ cuenta_id: config!.cuenta_iva_id!, debe: ivaDev, haber: 0 }] : []),
+        ]
+        if (metodoReembolsoDev === 'Efectivo') lineas.push({ cuenta_id: config!.cuenta_caja_id!, debe: 0, haber: montoDev })
+        else if (metodoReembolsoDev === 'Credito') lineas.push({ cuenta_id: config!.cuenta_cxc_id!, debe: 0, haber: montoDev })
+        else lineas.push({ cuenta_id: config!.cuenta_bancos_id!, debe: 0, haber: montoDev })
+        if (costoDev > 0) {
+          lineas.push({ cuenta_id: config!.cuenta_inventario_id!, debe: costoDev, haber: 0 })
+          lineas.push({ cuenta_id: config!.cuenta_costo_ventas_id!, debe: 0, haber: costoDev })
+        }
+        try {
+          const asientoId = await crearAsiento({
+            empresaId,
+            concepto: `Devolución de venta ${ventaDev.numero}`,
+            fecha: new Date().toISOString().slice(0, 10),
+            lineas,
+            prefijo: 'DEV',
+            creadoPor: perfil?.id ?? null,
+          })
+          await supabase.from('pos_devoluciones').update({ asiento_id: asientoId }).eq('id', devInsertada.id)
+          setOkDev(`Devolución registrada y contabilizada por ${fmt(montoDev)}.`)
+        } catch (asientoErr) {
+          setOkDev(`Devolución registrada, pero el asiento contable falló: ${(asientoErr as Error).message}. Regístralo manualmente en Libro Diario.`)
+        }
+      }
+
+      await cargar()
+      setVentaDev(null)
+      setItemsDev([])
+      setDevNumero('')
+    } catch (e) {
+      setErrorDev((e as Error).message)
+    } finally {
+      setProcesandoDev(false)
+    }
+  }
+
   if (!empresaId) {
     return (
       <div className="p-6">
@@ -398,6 +569,14 @@ export default function PosPage() {
           <Link to="/config-contable" className="text-[11px] text-white/40 hover:text-white/70 underline">
             ⚙️ Configuración contable
           </Link>
+          {turno && (
+            <button
+              onClick={abrirDevolucion}
+              className="rounded-lg border border-white/10 text-white/60 text-xs font-semibold px-3 py-1.5 hover:bg-white/5 transition-colors"
+            >
+              ↩ Devolución
+            </button>
+          )}
           {turno && (
             <button
               onClick={abrirCierre}
@@ -643,6 +822,122 @@ export default function PosPage() {
                 {cerrando ? 'Cerrando…' : 'Confirmar cierre'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {mostrarDevolucion && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto" onClick={() => setMostrarDevolucion(false)}>
+          <div className="bg-[var(--color-bg-1)] border border-white/10 rounded-2xl p-6 w-full max-w-md my-8" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-white mb-1">↩ Devolución de venta</h3>
+            <p className="text-xs text-white/40 mb-4">Busca la venta por su número para devolver uno o varios productos.</p>
+
+            <div className="flex gap-2 mb-4">
+              <input
+                value={devNumero}
+                onChange={(e) => setDevNumero(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && buscarVentaDevolucion()}
+                placeholder="Número de venta (ej. NV-000012)"
+                className="flex-1 rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-blue-5)]"
+              />
+              <button
+                onClick={buscarVentaDevolucion}
+                disabled={buscandoDev || !devNumero.trim()}
+                className="rounded-lg bg-[var(--color-blue-5)] text-white text-xs font-semibold px-3 hover:bg-[var(--color-blue-6)] disabled:opacity-60"
+              >
+                {buscandoDev ? '…' : 'Buscar'}
+              </button>
+            </div>
+
+            {errorBusquedaDev && <p role="alert" className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-3">{errorBusquedaDev}</p>}
+
+            {ventaDev && (
+              <>
+                <p className="text-xs text-white/50 mb-2">
+                  Cliente: {ventaDev.cliente_nombre || 'Consumidor Final'} · Total original: <strong className="text-white font-mono">{fmt(ventaDev.total)}</strong>
+                </p>
+
+                {itemsDev.length === 0 ? (
+                  <p className="text-xs text-white/40 mb-3">Esta venta no tiene productos vinculados para devolver.</p>
+                ) : (
+                  <div className="space-y-2 mb-3 max-h-56 overflow-y-auto pr-1">
+                    {itemsDev.map((it, i) => (
+                      <div key={i} className={`rounded-lg border border-white/10 px-3 py-2 ${it.disponible === 0 ? 'opacity-40' : ''}`}>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={it.marcada}
+                            disabled={it.disponible === 0}
+                            onChange={(e) => setItemsDev((prev) => prev.map((p, idx) => (idx === i ? { ...p, marcada: e.target.checked } : p)))}
+                          />
+                          <span className="flex-1 text-xs text-white">{it.nombre}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={it.disponible}
+                            value={it.cantidadDevolver}
+                            disabled={!it.marcada}
+                            onChange={(e) =>
+                              setItemsDev((prev) =>
+                                prev.map((p, idx) => (idx === i ? { ...p, cantidadDevolver: Math.min(Math.max(0, parseInt(e.target.value) || 0), p.disponible) } : p))
+                              )
+                            }
+                            className="w-16 rounded-md bg-white/5 border border-white/10 px-2 py-1 text-xs text-white text-center outline-none focus:border-[var(--color-blue-5)]"
+                          />
+                        </div>
+                        <p className="text-[10px] text-white/30 mt-1 ml-6">
+                          Vendida: {it.cantidad} · Ya devuelta: {it.yaDevuelta} · Disponible: {it.disponible}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mb-3">
+                  <label className="block text-xs text-white/50 mb-1">Motivo</label>
+                  <textarea
+                    value={motivoDev}
+                    onChange={(e) => setMotivoDev(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-blue-5)]"
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <label className="block text-xs text-white/50 mb-1">Método de reembolso</label>
+                  <select
+                    value={metodoReembolsoDev}
+                    onChange={(e) => setMetodoReembolsoDev(e.target.value as PagoPos['metodo'])}
+                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-blue-5)]"
+                  >
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Tarjeta">Tarjeta</option>
+                    <option value="Transferencia">Transferencia</option>
+                    <option value="Credito">Crédito (nota de crédito a CxC)</option>
+                  </select>
+                </div>
+
+                <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 mb-3 text-xs flex justify-between">
+                  <span className="text-white/50">Total a devolver</span>
+                  <strong className="text-white font-mono">{fmt(totalDev.total)}</strong>
+                </div>
+
+                {errorDev && <p role="alert" className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-3">{errorDev}</p>}
+                {okDev && <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 mb-3">{okDev}</p>}
+
+                <button
+                  onClick={confirmarDevolucion}
+                  disabled={procesandoDev || totalDev.total <= 0}
+                  className="w-full rounded-lg bg-red-600 text-white text-xs font-semibold py-2 hover:bg-red-500 disabled:opacity-60"
+                >
+                  {procesandoDev ? 'Procesando…' : '💾 Confirmar devolución'}
+                </button>
+              </>
+            )}
+
+            <button onClick={() => setMostrarDevolucion(false)} className="w-full rounded-lg border border-white/10 text-white/60 text-xs font-semibold py-2 hover:bg-white/5 mt-2">
+              Cerrar
+            </button>
           </div>
         </div>
       )}
