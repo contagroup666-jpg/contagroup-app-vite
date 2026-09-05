@@ -317,6 +317,52 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['config_cuentas_contables']['Row']>
       }
+      cxc_cargos: {
+        Row: {
+          id: string
+          empresa_id: string
+          cliente_id: string
+          concepto: string
+          fecha: string
+          total: number
+          fecha_vencimiento: string | null
+          observaciones: string | null
+          estado_convenio: string | null
+          convenio_id: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['cxc_cargos']['Row']> & {
+          empresa_id: string
+          cliente_id: string
+          concepto: string
+          fecha: string
+          total: number
+        }
+        Update: Partial<Database['public']['Tables']['cxc_cargos']['Row']>
+      }
+      cxc_abonos: {
+        Row: {
+          id: string
+          empresa_id: string
+          cargo_id: string
+          cliente_id: string
+          monto: number
+          fecha: string
+          metodo: string
+          referencia: string | null
+          observacion: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['cxc_abonos']['Row']> & {
+          empresa_id: string
+          cargo_id: string
+          cliente_id: string
+          monto: number
+          fecha: string
+          metodo: string
+        }
+        Update: Partial<Database['public']['Tables']['cxc_abonos']['Row']>
+      }
       compras: {
         Row: {
           id: string

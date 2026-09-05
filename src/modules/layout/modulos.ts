@@ -71,6 +71,13 @@ export const MODULOS: ModuloDef[] = [
     permisoRequerido: 'pos',
   },
   {
+    id: 'cxc',
+    label: 'Cuentas por Cobrar',
+    path: '/cxc',
+    icono: '💳',
+    permisoRequerido: 'ventas',
+  },
+  {
     id: 'compras',
     label: 'Compras',
     path: '/compras',
