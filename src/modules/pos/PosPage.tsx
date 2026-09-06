@@ -18,8 +18,6 @@ function fmt(n: number) {
   return new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(n || 0)
 }
 
-const IVA_RATE = 0.12
-
 export default function PosPage() {
   const { perfil } = useAuth()
   const empresaId = perfil?.empresa_id ?? null
@@ -58,6 +56,11 @@ export default function PosPage() {
   const [procesandoDev, setProcesandoDev] = useState(false)
   const [errorDev, setErrorDev] = useState<string | null>(null)
   const [okDev, setOkDev] = useState<string | null>(null)
+  // Tarifa de IVA de la empresa (config, NO hardcodeada). Ecuador ha cambiado
+  // esta tarifa varias veces (12% → 15% desde abril 2024) — el legacy la
+  // leía de `empresas.iva_porcentaje` con un valor por defecto desactualizado
+  // (12); aquí se lee igual pero con el valor vigente (15) como default.
+  const [ivaRate, setIvaRate] = useState(0.15)
 
   async function cargar() {
     if (!empresaId) {
@@ -65,9 +68,10 @@ export default function PosPage() {
       return
     }
     setLoading(true)
-    const [turnoRes, configRes] = await Promise.all([
+    const [turnoRes, configRes, empresaRes] = await Promise.all([
       supabase.from('pos_turnos').select('*').eq('empresa_id', empresaId).eq('estado', 'ABIERTO').maybeSingle(),
       supabase.from('config_cuentas_contables').select('*').eq('empresa_id', empresaId).maybeSingle(),
+      supabase.from('empresas').select('iva_porcentaje').eq('id', empresaId).maybeSingle(),
     ])
     if (turnoRes.error) {
       setError(turnoRes.error.message)
@@ -76,6 +80,8 @@ export default function PosPage() {
     }
     setConfig((configRes.data as unknown as Config) ?? null)
     setTurno((turnoRes.data as unknown as Turno) ?? null)
+    const ivaPct = (empresaRes.data as unknown as { iva_porcentaje: number } | null)?.iva_porcentaje
+    setIvaRate((ivaPct ?? 15) / 100)
     if (turnoRes.data) {
       const [prodRes, cliRes] = await Promise.all([
         supabase.from('productos').select('*').eq('empresa_id', empresaId).order('nombre'),
@@ -103,9 +109,9 @@ export default function PosPage() {
 
   const { sub, iva, tot } = useMemo(() => {
     const s = carrito.reduce((a, i) => a + i.precio * i.cantidad, 0)
-    const v = s * IVA_RATE
+    const v = s * ivaRate
     return { sub: s, iva: v, tot: s + v }
-  }, [carrito])
+  }, [carrito, ivaRate])
 
   const pagado = pagos.reduce((a, p) => a + (Number(p.monto) || 0), 0)
   const restante = tot - pagado
@@ -443,8 +449,8 @@ export default function PosPage() {
   const totalDev = useMemo(() => {
     const base = itemsDev.filter((i) => i.marcada).reduce((a, i) => a + i.precio * i.cantidadDevolver, 0)
     const costo = itemsDev.filter((i) => i.marcada).reduce((a, i) => a + (i.costo || 0) * i.cantidadDevolver, 0)
-    return { base, iva: base * IVA_RATE, total: base * (1 + IVA_RATE), costo }
-  }, [itemsDev])
+    return { base, iva: base * ivaRate, total: base * (1 + ivaRate), costo }
+  }, [itemsDev, ivaRate])
 
   async function confirmarDevolucion() {
     if (!empresaId || !ventaDev) return
@@ -704,7 +710,7 @@ export default function PosPage() {
               <span>{fmt(sub)}</span>
             </div>
             <div className="flex justify-between text-xs text-white/50 mb-2">
-              <span>IVA (12%)</span>
+              <span>IVA ({(ivaRate * 100).toFixed(0)}%)</span>
               <span>{fmt(iva)}</span>
             </div>
             <div className="flex justify-between text-sm font-semibold text-white border-t border-white/10 pt-2 mb-3">
