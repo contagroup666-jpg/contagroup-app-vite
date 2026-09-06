@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient'
+import { crearAsiento } from '../../lib/contabilidad'
 import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
@@ -7,6 +8,9 @@ import EstadoVacio from '../../components/EstadoVacio'
 type MovConc = Database['public']['Tables']['conciliacion_movimientos']['Row']
 type Config = Database['public']['Tables']['config_cuentas_contables']['Row']
 type CuentaBancaria = Database['public']['Tables']['cuentas_bancarias']['Row']
+type PlanCuenta = Database['public']['Tables']['plan_cuentas']['Row']
+type ConcConfig = Database['public']['Tables']['conciliacion_config']['Row']
+type Cierre = Database['public']['Tables']['conciliacion_cierres']['Row']
 
 type LineaBanco = {
   id: string // asiento_linea_id
@@ -30,34 +34,81 @@ const EJEMPLO_DEMO = [
   { fecha: '2025-06-15', descripcion: 'COMISION BANCARIA', monto: -25 },
 ]
 
+// Reglas de sugerencia de cuenta contrapartida a partir de palabras clave en
+// la descripción del extracto. Esto NO es un modelo de IA — es un
+// heurístico simple, honesto sobre su límite: cada empresa nombra sus
+// cuentas distinto, así que solo es un punto de partida que el usuario
+// SIEMPRE debe confirmar (o cambiar) antes de contabilizar. Nunca se aplica
+// una cuenta sin que el usuario la confirme explícitamente.
+type Sugerencia = { cuenta: PlanCuenta | null; confianza: 'alta' | 'media' | 'baja'; motivo: string }
+
+function sugerirCuenta(descripcion: string, monto: number, cuentas: PlanCuenta[]): Sugerencia {
+  const d = descripcion.toUpperCase()
+  const porNombre = (...palabras: string[]) => cuentas.find((c) => c.es_detalle && palabras.some((p) => c.nombre.toUpperCase().includes(p)))
+  const primeraDeClase = (clase: number) => cuentas.find((c) => c.es_detalle && c.clase === clase) ?? null
+
+  if (/(COMISION|MANTENIMIENTO|TARIFA|SERVICIO BANCARIO)/.test(d)) {
+    const c = porNombre('BANCO', 'COMISION', 'FINANC')
+    return c ? { cuenta: c, confianza: 'alta', motivo: 'Parece una comisión o cargo bancario.' } : { cuenta: primeraDeClase(5), confianza: 'media', motivo: 'Parece un gasto bancario, pero no encontré una cuenta específica — verifica cuál aplica.' }
+  }
+  if (/(NOMINA|SUELDO|ROL DE PAGO|IESS)/.test(d)) {
+    const c = porNombre('SUELDO', 'NOMINA', 'PERSONAL', 'REMUNERAC')
+    return c ? { cuenta: c, confianza: 'alta', motivo: 'Parece un pago de nómina.' } : { cuenta: primeraDeClase(5), confianza: 'media', motivo: 'Parece nómina, pero no encontré la cuenta específica de sueldos.' }
+  }
+  if (/(IMPUESTO|RETENCION|SRI|ITF)/.test(d)) {
+    const c = porNombre('IMPUESTO', 'RETENCION', 'SRI')
+    return c ? { cuenta: c, confianza: 'alta', motivo: 'Parece un impuesto o retención.' } : { cuenta: primeraDeClase(2), confianza: 'media', motivo: 'Parece un impuesto/retención, verifica la cuenta correcta.' }
+  }
+  if (/(PROVEEDOR|COMPRA|INVENTARIO)/.test(d)) {
+    const c = porNombre('POR PAGAR', 'PROVEEDOR')
+    return c ? { cuenta: c, confianza: 'alta', motivo: 'Parece un pago a proveedor.' } : { cuenta: primeraDeClase(monto < 0 ? 5 : 2), confianza: 'media', motivo: 'Parece pago a proveedor, verifica la cuenta correcta.' }
+  }
+  if (/(CLIENTE|COBRO|FACTURA|DEPOSITO)/.test(d) && monto > 0) {
+    const c = porNombre('VENTA', 'POR COBRAR', 'CLIENTE')
+    return c ? { cuenta: c, confianza: 'alta', motivo: 'Parece un cobro de cliente.' } : { cuenta: primeraDeClase(4), confianza: 'media', motivo: 'Parece un cobro, verifica la cuenta correcta.' }
+  }
+  return monto > 0
+    ? { cuenta: primeraDeClase(4), confianza: 'baja', motivo: 'No reconocí el concepto — revisa bien la cuenta antes de confirmar.' }
+    : { cuenta: primeraDeClase(5), confianza: 'baja', motivo: 'No reconocí el concepto — revisa bien la cuenta antes de confirmar.' }
+}
+
 // Conciliación Bancaria: en el legacy, este módulo era 100% en memoria del
-// navegador (un array JS `bancarios`) — nunca se guardaba nada en la base de
-// datos. Al recargar la página, o al dar clic en "Limpiar", se perdía todo
-// el trabajo de conciliación. Además, "conciliar automático" comparaba el
-// monto contra CUALQUIER asiento de la empresa (sin filtrar por la cuenta
-// Bancos, y sin evitar que el mismo asiento se emparejara con dos
-// movimientos bancarios distintos).
-//
-// Aquí los movimientos bancarios se guardan en `conciliacion_movimientos`
-// (persisten entre sesiones) y el match — automático o manual — se hace
-// contra líneas reales de `asiento_lineas` de la cuenta Bancos configurada,
-// con un índice único que impide que una misma línea contable se concilie
-// dos veces.
+// navegador — nunca se guardaba nada, y "conciliar automático" solo
+// comparaba montos contra cualquier asiento de la empresa. Esta versión:
+// (1) persiste todo en `conciliacion_movimientos`, con un índice único que
+// impide conciliar la misma línea contable dos veces; (2) diagnostica los
+// DOS lados del descuadre — movimientos bancarios sin registrar en libros,
+// y asientos de Bancos que el extracto todavía no muestra; (3) calcula la
+// diferencia real (saldo banco vs saldo libro) ajustada por las partidas
+// pendientes — si después de esa aritmética queda una diferencia distinta
+// de cero, es un error de verdad, no solo timing; (4) para movimientos
+// bancarios huérfanos, sugiere una cuenta contrapartida por palabras clave
+// y, con un clic de confirmación del usuario, contabiliza vía
+// fn_crear_asiento y concilia en el mismo paso. Nunca se corrige nada sin
+// que el usuario confirme la cuenta — la sugerencia es solo un punto de
+// partida.
 export default function ConciliacionPage() {
   const { perfil } = useAuth()
   const empresaId = perfil?.empresa_id ?? null
-  const fileRef = useRef<HTMLInputElement>(null)
 
   const [movimientos, setMovimientos] = useState<MovConc[]>([])
   const [lineasBanco, setLineasBanco] = useState<LineaBanco[]>([])
   const [config, setConfig] = useState<Config | null>(null)
+  const [cuentaBancosPlan, setCuentaBancosPlan] = useState<PlanCuenta | null>(null)
+  const [planCuentas, setPlanCuentas] = useState<PlanCuenta[]>([])
   const [cuentasBancarias, setCuentasBancarias] = useState<CuentaBancaria[]>([])
   const [cuentaBancariaImport, setCuentaBancariaImport] = useState('')
+  const [, setConcConfig] = useState<ConcConfig | null>(null)
+  const [saldoInicialInput, setSaldoInicialInput] = useState('0')
+  const [cierres, setCierres] = useState<Cierre[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [conciliando, setConciliando] = useState(false)
   const [manualAbierto, setManualAbierto] = useState<string | null>(null)
   const [manualSeleccion, setManualSeleccion] = useState('')
+  const [corrigiendo, setCorrigiendo] = useState<string | null>(null)
+  const [correccionCuenta, setCorreccionCuenta] = useState<Record<string, string>>({})
+  const [guardandoCierre, setGuardandoCierre] = useState(false)
 
   async function cargar() {
     if (!empresaId) {
@@ -65,17 +116,27 @@ export default function ConciliacionPage() {
       return
     }
     setLoading(true)
-    const [movsRes, configRes, cuentasRes] = await Promise.all([
+    const [movsRes, configRes, cuentasRes, planRes, concConfigRes, cierresRes] = await Promise.all([
       supabase.from('conciliacion_movimientos').select('*').eq('empresa_id', empresaId).order('fecha', { ascending: false }),
       supabase.from('config_cuentas_contables').select('*').eq('empresa_id', empresaId).maybeSingle(),
       supabase.from('cuentas_bancarias').select('*').eq('empresa_id', empresaId).eq('tipo_titular', 'empresa'),
+      supabase.from('plan_cuentas').select('*').eq('empresa_id', empresaId).order('codigo'),
+      supabase.from('conciliacion_config').select('*').eq('empresa_id', empresaId).maybeSingle(),
+      supabase.from('conciliacion_cierres').select('*').eq('empresa_id', empresaId).order('created_at', { ascending: false }),
     ])
     if (movsRes.error) setError(movsRes.error.message)
     else setError(null)
     const cfg = (configRes.data ?? null) as unknown as Config | null
+    const plan = (planRes.data ?? []) as unknown as PlanCuenta[]
     setMovimientos((movsRes.data ?? []) as unknown as MovConc[])
     setConfig(cfg)
+    setPlanCuentas(plan)
     setCuentasBancarias((cuentasRes.data ?? []) as unknown as CuentaBancaria[])
+    setCierres((cierresRes.data ?? []) as unknown as Cierre[])
+    const cc = (concConfigRes.data ?? null) as unknown as ConcConfig | null
+    setConcConfig(cc)
+    setSaldoInicialInput(String(cc?.saldo_inicial_extracto ?? 0))
+    setCuentaBancosPlan(cfg?.cuenta_bancos_id ? plan.find((c) => c.id === cfg.cuenta_bancos_id) ?? null : null)
 
     if (cfg?.cuenta_bancos_id) {
       const { data: lineasD } = await supabase
@@ -110,6 +171,7 @@ export default function ConciliacionPage() {
     [movimientos]
   )
   const lineasDisponibles = useMemo(() => lineasBanco.filter((l) => !idsYaConciliados.has(l.id)), [lineasBanco, idsYaConciliados])
+  const pendientesBanco = useMemo(() => movimientos.filter((m) => m.estado === 'pendiente'), [movimientos])
 
   const resumen = useMemo(() => {
     const importados = movimientos.length
@@ -117,13 +179,30 @@ export default function ConciliacionPage() {
     return { importados, conciliados, pendientes: importados - conciliados }
   }, [movimientos])
 
+  // ── Diagnóstico de saldos: la aritmética real de una conciliación bancaria ──
+  const diagnostico = useMemo(() => {
+    const saldoInicial = parseFloat(saldoInicialInput) || 0
+    const saldoBanco = saldoInicial + movimientos.reduce((s, m) => s + m.monto, 0)
+    const saldoLibro = cuentaBancosPlan?.saldo ?? 0
+    const pendientesBancoSuma = pendientesBanco.reduce((s, m) => s + m.monto, 0)
+    const pendientesLibroSuma = lineasDisponibles.reduce((s, l) => s + (l.debe - l.haber), 0)
+    // saldo_banco_ajustado = saldo_banco + pendientesLibro (lo que el libro ya registró y el banco aún no muestra)
+    // saldo_libro_ajustado = saldo_libro + pendientesBanco (lo que el banco ya hizo y el libro aún no registra)
+    // Si ambos ajustados coinciden, la diferencia es solo de tiempo (normal). Si no, hay un error real.
+    const diferenciaNoExplicada = saldoBanco + pendientesLibroSuma - (saldoLibro + pendientesBancoSuma)
+    return { saldoInicial, saldoBanco, saldoLibro, pendientesBancoSuma, pendientesLibroSuma, diferenciaNoExplicada }
+  }, [saldoInicialInput, movimientos, cuentaBancosPlan, pendientesBanco, lineasDisponibles])
+
+  async function guardarSaldoInicial() {
+    if (!empresaId) return
+    const valor = parseFloat(saldoInicialInput) || 0
+    await supabase.from('conciliacion_config').upsert({ empresa_id: empresaId, saldo_inicial_extracto: valor, updated_por: perfil?.id ?? null })
+    await cargar()
+  }
+
   function candidatosPara(mov: MovConc): LineaBanco[] {
-    // Un depósito (monto>0) se concilia con el débito de la cuenta Bancos;
-    // un retiro/pago (monto<0) se concilia con el crédito.
     const esDeposito = mov.monto > 0
-    return lineasDisponibles
-      .filter((l) => (esDeposito ? l.debe > 0 : l.haber > 0))
-      .sort((a, b) => b.fecha.localeCompare(a.fecha))
+    return lineasDisponibles.filter((l) => (esDeposito ? l.debe > 0 : l.haber > 0)).sort((a, b) => b.fecha.localeCompare(a.fecha))
   }
 
   async function conciliarAutomatico() {
@@ -138,7 +217,6 @@ export default function ConciliacionPage() {
       const objetivo = Math.abs(mov.monto)
       const candidatas = lineasBanco.filter((l) => !usadas.has(l.id) && (esDeposito ? l.debe > 0 : l.haber > 0) && Math.abs((esDeposito ? l.debe : l.haber) - objetivo) < 0.01)
       if (candidatas.length === 0) continue
-      // Preferimos la fecha más cercana al movimiento bancario.
       candidatas.sort((a, b) => Math.abs(new Date(a.fecha).getTime() - new Date(mov.fecha).getTime()) - Math.abs(new Date(b.fecha).getTime() - new Date(mov.fecha).getTime()))
       const elegida = candidatas[0]
       usadas.add(elegida.id)
@@ -201,7 +279,7 @@ export default function ConciliacionPage() {
     const reader = new FileReader()
     reader.onload = async (e) => {
       const texto = String(e.target?.result || '')
-      const lineas = texto.split('\n').slice(1) // saltar encabezado
+      const lineas = texto.split('\n').slice(1)
       const filas = lineas
         .filter((l) => l.trim())
         .map((l) => {
@@ -219,12 +297,71 @@ export default function ConciliacionPage() {
     await insertarMovimientos(EJEMPLO_DEMO, 'ejemplo-demo')
   }
 
+  // ── Motor de corrección: contabiliza el movimiento huérfano y lo concilia en un solo paso ──
+  async function contabilizarYConciliar(mov: MovConc) {
+    if (!empresaId || !config?.cuenta_bancos_id) return
+    const cuentaId = correccionCuenta[mov.id]
+    if (!cuentaId) return
+    setCorrigiendo(mov.id)
+    try {
+      const monto = Math.abs(mov.monto)
+      const lineas =
+        mov.monto > 0
+          ? [
+              { cuenta_id: config.cuenta_bancos_id, debe: monto, haber: 0 },
+              { cuenta_id: cuentaId, debe: 0, haber: monto },
+            ]
+          : [
+              { cuenta_id: cuentaId, debe: monto, haber: 0 },
+              { cuenta_id: config.cuenta_bancos_id, debe: 0, haber: monto },
+            ]
+      const asientoId = await crearAsiento({
+        empresaId,
+        concepto: `Conciliación bancaria: ${mov.descripcion}`,
+        fecha: mov.fecha,
+        lineas,
+        prefijo: 'CONC',
+        creadoPor: perfil?.id ?? null,
+      })
+      const { data: nuevaLinea } = await supabase.from('asiento_lineas').select('id').eq('asiento_id', asientoId).eq('cuenta_id', config.cuenta_bancos_id).maybeSingle()
+      if (nuevaLinea) {
+        await supabase.from('conciliacion_movimientos').update({ estado: 'conciliado', asiento_linea_id: (nuevaLinea as { id: string }).id }).eq('id', mov.id)
+      }
+    } catch (e) {
+      setError(`No se pudo contabilizar: ${(e as Error).message}`)
+    } finally {
+      setCorrigiendo(null)
+      await cargar()
+    }
+  }
+
+  async function guardarCierre() {
+    if (!empresaId) return
+    setGuardandoCierre(true)
+    await supabase.from('conciliacion_cierres').insert({
+      empresa_id: empresaId,
+      saldo_inicial_extracto: diagnostico.saldoInicial,
+      saldo_banco: diagnostico.saldoBanco,
+      saldo_libro: diagnostico.saldoLibro,
+      pendientes_banco: diagnostico.pendientesBancoSuma,
+      pendientes_libro: diagnostico.pendientesLibroSuma,
+      diferencia_no_explicada: diagnostico.diferenciaNoExplicada,
+      num_pendientes_banco: pendientesBanco.length,
+      num_pendientes_libro: lineasDisponibles.length,
+      creado_por: perfil?.id ?? null,
+    })
+    setGuardandoCierre(false)
+    await cargar()
+  }
+
   if (!empresaId) return <EstadoVacio icono="🏦" titulo="Sin empresa asignada" descripcion="Tu usuario no tiene una empresa asignada todavía." />
+
+  const conciliaLimpio = Math.abs(diagnostico.diferenciaNoExplicada) < 0.01
 
   return (
     <div className="p-6">
       <h1 className="text-lg font-semibold text-white mb-1">Conciliación Bancaria</h1>
-      <p className="text-xs text-white/40 mb-4">Importa tu estado de cuenta CSV y cruza con los asientos reales de la cuenta Bancos — se guarda de forma persistente, no en memoria del navegador.</p>
+      <p className="text-xs text-white/40 mb-4">Importa tu estado de cuenta y cruza contra los asientos reales de la cuenta Bancos — persistido, con diagnóstico de ambos lados y corrección asistida.</p>
 
       {error && <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">{error}</p>}
       {!config?.cuenta_bancos_id && (
@@ -236,6 +373,43 @@ export default function ConciliacionPage() {
 
       {!loading && (
         <>
+          {/* Diagnóstico de saldos */}
+          <div className={`rounded-2xl border p-4 mb-4 ${conciliaLimpio ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'}`}>
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+              <p className="text-xs font-semibold text-white">{conciliaLimpio ? '✅ La conciliación cuadra' : '⚠️ Hay una diferencia sin explicar'}</p>
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] text-white/40">Saldo inicial del extracto</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={saldoInicialInput}
+                  onChange={(e) => setSaldoInicialInput(e.target.value)}
+                  onBlur={guardarSaldoInicial}
+                  className="w-28 rounded-md bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-[var(--color-blue-5)]"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-2">
+              <div><p className="text-white/40">Saldo según extracto</p><p className="font-mono text-white font-medium">{fmt(diagnostico.saldoBanco)}</p></div>
+              <div><p className="text-white/40">Saldo según libro (Bancos)</p><p className="font-mono text-white font-medium">{fmt(diagnostico.saldoLibro)}</p></div>
+              <div><p className="text-white/40">Pendientes lado banco</p><p className="font-mono text-amber-300">{fmt(diagnostico.pendientesBancoSuma)} ({pendientesBanco.length})</p></div>
+              <div><p className="text-white/40">Pendientes lado libro</p><p className="font-mono text-amber-300">{fmt(diagnostico.pendientesLibroSuma)} ({lineasDisponibles.length})</p></div>
+            </div>
+            <p className={`text-xs font-mono font-semibold ${conciliaLimpio ? 'text-emerald-400' : 'text-red-400'}`}>
+              Diferencia no explicada: {fmt(diagnostico.diferenciaNoExplicada)}
+            </p>
+            <p className="text-[11px] text-white/30 mt-1">
+              {conciliaLimpio
+                ? 'Todo lo que no coincide entre banco y libro está cubierto por partidas pendientes normales (depósitos en tránsito, movimientos aún no registrados).'
+                : 'Después de descontar las partidas pendientes de ambos lados, queda una diferencia real — revisa montos duplicados o mal ingresados.'}
+            </p>
+            <div className="flex justify-end mt-2">
+              <button onClick={guardarCierre} disabled={guardandoCierre} className="rounded-lg border border-white/10 text-white/60 text-xs font-semibold px-3 py-1.5 hover:bg-white/5 disabled:opacity-60">
+                {guardandoCierre ? 'Guardando…' : '📌 Guardar cierre de conciliación'}
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             <div className="rounded-2xl border border-white/10 p-4">
               <p className="text-xs font-medium text-white/60 mb-2">📂 Importar estado de cuenta</p>
@@ -254,7 +428,7 @@ export default function ConciliacionPage() {
                   ))}
                 </select>
               )}
-              <input ref={fileRef} type="file" accept=".csv" onChange={(e) => manejarCSV(e.target)} className="w-full text-xs text-white/60 mb-2" />
+              <input type="file" accept=".csv" onChange={(e) => manejarCSV(e.target)} className="w-full text-xs text-white/60 mb-2" />
               <button onClick={cargarEjemploDemo} className="w-full rounded-lg border border-white/10 text-white/60 text-xs font-semibold py-1.5 hover:bg-white/5">
                 📋 Cargar ejemplo demo
               </button>
@@ -276,9 +450,96 @@ export default function ConciliacionPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 overflow-hidden">
+          {/* Diagnóstico lado banco: movimientos sin registrar en libros, con corrección asistida */}
+          <div className="rounded-2xl border border-amber-500/20 overflow-hidden mb-4">
+            <div className="px-4 py-2.5 border-b border-white/10 bg-amber-500/5">
+              <p className="text-xs font-medium text-white">🩺 Movimientos bancarios sin registrar en libros ({pendientesBanco.length})</p>
+              <p className="text-[11px] text-white/40 mt-0.5">Algo pasó en el banco que nadie contabilizó todavía. Elige la cuenta y confirma para contabilizar y conciliar en un paso.</p>
+            </div>
+            {pendientesBanco.length === 0 ? (
+              <div className="px-4 py-6 text-center text-xs text-white/30">Sin pendientes de este lado.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <tbody>
+                  {pendientesBanco.map((m) => {
+                    const sug = sugerirCuenta(m.descripcion, m.monto, planCuentas)
+                    const seleccion = correccionCuenta[m.id] ?? sug.cuenta?.id ?? ''
+                    return (
+                      <tr key={m.id} className="border-t border-white/5 align-top">
+                        <td className="px-4 py-2.5 text-white/50 text-xs whitespace-nowrap">{m.fecha}</td>
+                        <td className="px-4 py-2.5 text-white text-xs">{m.descripcion}</td>
+                        <td className={`px-4 py-2.5 text-right font-mono text-xs font-medium whitespace-nowrap ${m.monto >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(m.monto)}</td>
+                        <td className="px-4 py-2.5 min-w-[260px]">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${sug.confianza === 'alta' ? 'bg-emerald-500/20 text-emerald-300' : sug.confianza === 'media' ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-white/40'}`}>
+                                {sug.confianza === 'alta' ? 'sugerencia sólida' : sug.confianza === 'media' ? 'sugerencia parcial' : 'sin sugerencia clara'}
+                              </span>
+                              <span className="text-[10px] text-white/30">{sug.motivo}</span>
+                            </div>
+                            <select
+                              value={seleccion}
+                              onChange={(e) => setCorreccionCuenta({ ...correccionCuenta, [m.id]: e.target.value })}
+                              className="rounded-md bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-[var(--color-blue-5)]"
+                            >
+                              <option value="">Seleccionar cuenta…</option>
+                              {planCuentas.filter((c) => c.es_detalle).map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.codigo} — {c.nombre}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => contabilizarYConciliar(m)}
+                              disabled={!seleccion || corrigiendo === m.id}
+                              className="self-start rounded-md bg-emerald-600 text-white text-[11px] font-semibold px-2 py-1 hover:bg-emerald-500 disabled:opacity-50"
+                            >
+                              {corrigiendo === m.id ? 'Contabilizando…' : '✅ Contabilizar y conciliar'}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-right align-top">
+                          <button onClick={() => eliminarMovimiento(m.id)} className="text-white/30 hover:text-red-400 text-xs">
+                            🗑
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Diagnóstico lado libro: asientos que el extracto todavía no muestra */}
+          <div className="rounded-2xl border border-white/10 overflow-hidden mb-4">
+            <div className="px-4 py-2.5 border-b border-white/10">
+              <p className="text-xs font-medium text-white/60">📖 Asientos de Bancos sin aparecer en el extracto ({lineasDisponibles.length})</p>
+              <p className="text-[11px] text-white/30 mt-0.5">
+                Normalmente son partidas en tránsito (depósitos o pagos ya contabilizados que el banco aún no procesa). Si crees que alguno es un error, revísalo en Libro Diario — por seguridad, esta pantalla no modifica asientos existentes.
+              </p>
+            </div>
+            {lineasDisponibles.length === 0 ? (
+              <div className="px-4 py-6 text-center text-xs text-white/30">Sin pendientes de este lado.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <tbody>
+                  {lineasDisponibles.map((l) => (
+                    <tr key={l.id} className="border-t border-white/5">
+                      <td className="px-4 py-2.5 text-white/50 text-xs whitespace-nowrap">{l.fecha}</td>
+                      <td className="px-4 py-2.5 text-blue-300 text-xs whitespace-nowrap">{l.numero}</td>
+                      <td className="px-4 py-2.5 text-white/70 text-xs">{l.concepto}</td>
+                      <td className={`px-4 py-2.5 text-right font-mono text-xs font-medium ${l.debe > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(l.debe > 0 ? l.debe : -l.haber)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-white/10 overflow-hidden mb-4">
             <div className="px-4 py-2.5 border-b border-white/10 flex items-center justify-between">
-              <span className="text-xs font-medium text-white/60">🏦 Movimientos bancarios</span>
+              <span className="text-xs font-medium text-white/60">🏦 Todos los movimientos bancarios</span>
               {movimientos.length > 0 && (
                 <button onClick={limpiarTodo} className="text-[11px] text-white/40 hover:text-red-400">
                   🗑 Limpiar todo
@@ -340,11 +601,7 @@ export default function ConciliacionPage() {
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-xs">
-                          {m.estado === 'conciliado' ? (
-                            <span className="text-emerald-400">✅ Conciliado</span>
-                          ) : (
-                            <span className="text-amber-400">⏳ Pendiente</span>
-                          )}
+                          {m.estado === 'conciliado' ? <span className="text-emerald-400">✅ Conciliado</span> : <span className="text-amber-400">⏳ Pendiente</span>}
                         </td>
                         <td className="px-4 py-2.5 text-right whitespace-nowrap">
                           {m.estado === 'conciliado' && (
@@ -363,6 +620,34 @@ export default function ConciliacionPage() {
               </table>
             )}
           </div>
+
+          {cierres.length > 0 && (
+            <div className="rounded-2xl border border-white/10 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-white/10 text-xs font-medium text-white/60">🗂 Historial de cierres de conciliación</div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-white/5 text-left text-white/50 text-[11px] uppercase tracking-wide">
+                    <th className="px-4 py-2 font-medium">Fecha</th>
+                    <th className="px-4 py-2 font-medium text-right">Saldo banco</th>
+                    <th className="px-4 py-2 font-medium text-right">Saldo libro</th>
+                    <th className="px-4 py-2 font-medium text-right">Diferencia no explicada</th>
+                    <th className="px-4 py-2 font-medium text-right">Pendientes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cierres.map((c) => (
+                    <tr key={c.id} className="border-t border-white/5">
+                      <td className="px-4 py-2.5 text-white/70 text-xs">{c.fecha}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-white/70">{fmt(c.saldo_banco)}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-white/70">{fmt(c.saldo_libro)}</td>
+                      <td className={`px-4 py-2.5 text-right font-mono text-xs font-semibold ${Math.abs(c.diferencia_no_explicada) < 0.01 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(c.diferencia_no_explicada)}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-amber-300">{c.num_pendientes_banco} banco / {c.num_pendientes_libro} libro</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
     </div>

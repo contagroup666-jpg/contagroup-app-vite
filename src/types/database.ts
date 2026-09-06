@@ -441,6 +441,41 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['conciliacion_movimientos']['Row']>
       }
+      conciliacion_config: {
+        Row: {
+          empresa_id: string
+          saldo_inicial_extracto: number
+          updated_at: string
+          updated_por: string | null
+        }
+        Insert: Partial<Database['public']['Tables']['conciliacion_config']['Row']> & {
+          empresa_id: string
+        }
+        Update: Partial<Database['public']['Tables']['conciliacion_config']['Row']>
+      }
+      conciliacion_cierres: {
+        Row: {
+          id: string
+          empresa_id: string
+          fecha: string
+          saldo_inicial_extracto: number
+          saldo_banco: number
+          saldo_libro: number
+          pendientes_banco: number
+          pendientes_libro: number
+          diferencia_no_explicada: number
+          num_pendientes_banco: number
+          num_pendientes_libro: number
+          creado_por: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['conciliacion_cierres']['Row']> & {
+          empresa_id: string
+          saldo_banco: number
+          saldo_libro: number
+        }
+        Update: Partial<Database['public']['Tables']['conciliacion_cierres']['Row']>
+      }
       config_cuentas_contables: {
         Row: {
           id: string
