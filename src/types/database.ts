@@ -160,6 +160,9 @@ export interface Database {
           stock_min: number
           stock_max: number
           categoria: string | null
+          codigo_ice: string | null
+          tipo_venta_ice: string | null
+          gramos_azucar: number | null
           created_at: string
         }
         Insert: Partial<Database['public']['Tables']['productos']['Row']> & {

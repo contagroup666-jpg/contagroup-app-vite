@@ -106,6 +106,13 @@ export const MODULOS: ModuloDef[] = [
     permisoRequerido: 'contabilidad',
   },
   {
+    id: 'ice',
+    label: 'Generador ICE',
+    path: '/ice',
+    icono: '🧊',
+    permisoRequerido: 'contabilidad',
+  },
+  {
     id: 'retenciones',
     label: 'Retenciones',
     path: '/retenciones',
