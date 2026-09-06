@@ -92,6 +92,13 @@ export const MODULOS: ModuloDef[] = [
     permisoRequerido: 'contabilidad',
   },
   {
+    id: 'conciliacion',
+    label: 'Conciliación Bancaria',
+    path: '/conciliacion',
+    icono: '🔗',
+    permisoRequerido: 'contabilidad',
+  },
+  {
     id: 'retenciones',
     label: 'Retenciones',
     path: '/retenciones',

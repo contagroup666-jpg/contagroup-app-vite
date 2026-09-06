@@ -383,6 +383,64 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['cierres_caja']['Row']>
       }
+      asientos: {
+        Row: {
+          id: string
+          empresa_id: string
+          numero: string
+          concepto: string
+          fecha: string
+          debe: number
+          haber: number
+          estado: string
+          creado_por: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['asientos']['Row']> & {
+          empresa_id: string
+          numero: string
+          concepto: string
+          fecha: string
+        }
+        Update: Partial<Database['public']['Tables']['asientos']['Row']>
+      }
+      asiento_lineas: {
+        Row: {
+          id: string
+          asiento_id: string
+          cuenta_id: string
+          debe: number
+          haber: number
+          orden: number | null
+        }
+        Insert: Partial<Database['public']['Tables']['asiento_lineas']['Row']> & {
+          asiento_id: string
+          cuenta_id: string
+        }
+        Update: Partial<Database['public']['Tables']['asiento_lineas']['Row']>
+      }
+      conciliacion_movimientos: {
+        Row: {
+          id: string
+          empresa_id: string
+          cuenta_bancaria_id: string | null
+          fecha: string
+          descripcion: string
+          monto: number
+          estado: 'pendiente' | 'conciliado'
+          asiento_linea_id: string | null
+          lote: string | null
+          creado_por: string | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['conciliacion_movimientos']['Row']> & {
+          empresa_id: string
+          fecha: string
+          descripcion: string
+          monto: number
+        }
+        Update: Partial<Database['public']['Tables']['conciliacion_movimientos']['Row']>
+      }
       config_cuentas_contables: {
         Row: {
           id: string
