@@ -228,6 +228,11 @@ export interface Database {
           turno_id: string | null
           cajero_id: string | null
           cajero_nombre: string | null
+          subtotal_0: number | null
+          subtotal_12: number | null
+          subtotal_15: number | null
+          iva_12: number | null
+          iva_15: number | null
           created_at: string
         }
         Insert: Partial<Database['public']['Tables']['facturas']['Row']> & {

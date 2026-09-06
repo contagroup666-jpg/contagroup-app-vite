@@ -99,6 +99,13 @@ export const MODULOS: ModuloDef[] = [
     permisoRequerido: 'contabilidad',
   },
   {
+    id: 'ats',
+    label: 'Generador ATS',
+    path: '/ats',
+    icono: '📊',
+    permisoRequerido: 'contabilidad',
+  },
+  {
     id: 'retenciones',
     label: 'Retenciones',
     path: '/retenciones',

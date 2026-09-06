@@ -14,6 +14,7 @@ import CxCPage from './modules/cxc/CxCPage'
 import CajaChicaPage from './modules/caja-chica/CajaChicaPage'
 import TesoreriaPage from './modules/tesoreria/TesoreriaPage'
 import ConciliacionPage from './modules/conciliacion/ConciliacionPage'
+import ATSPage from './modules/ats/ATSPage'
 import RetencionesPage from './modules/retenciones/RetencionesPage'
 import NominaPage from './modules/nomina/NominaPage'
 import ActivosFijosPage from './modules/activos-fijos/ActivosFijosPage'
@@ -40,6 +41,7 @@ export default function App() {
               <Route path="/caja-chica" element={<CajaChicaPage />} />
               <Route path="/tesoreria" element={<TesoreriaPage />} />
               <Route path="/conciliacion" element={<ConciliacionPage />} />
+              <Route path="/ats" element={<ATSPage />} />
               <Route path="/retenciones" element={<RetencionesPage />} />
               <Route path="/nomina" element={<NominaPage />} />
               <Route path="/activos-fijos" element={<ActivosFijosPage />} />
