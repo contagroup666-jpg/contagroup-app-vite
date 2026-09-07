@@ -532,6 +532,26 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['retenciones']['Row']>
       }
+      auditoria: {
+        Row: {
+          id: string
+          empresa_id: string | null
+          usuario_id: string | null
+          usuario_nombre: string
+          accion: string
+          tabla: string
+          registro_id: string | null
+          valores_anteriores: Record<string, unknown> | null
+          valores_nuevos: Record<string, unknown> | null
+          created_at: string
+        }
+        Insert: Partial<Database['public']['Tables']['auditoria']['Row']> & {
+          usuario_nombre: string
+          accion: string
+          tabla: string
+        }
+        Update: Partial<Database['public']['Tables']['auditoria']['Row']>
+      }
       cxc_cargos: {
         Row: {
           id: string

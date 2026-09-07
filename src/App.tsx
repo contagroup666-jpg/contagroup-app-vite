@@ -16,6 +16,7 @@ import TesoreriaPage from './modules/tesoreria/TesoreriaPage'
 import ConciliacionPage from './modules/conciliacion/ConciliacionPage'
 import ATSPage from './modules/ats/ATSPage'
 import ICEPage from './modules/ice/ICEPage'
+import AuditoriaPage from './modules/auditoria/AuditoriaPage'
 import RetencionesPage from './modules/retenciones/RetencionesPage'
 import NominaPage from './modules/nomina/NominaPage'
 import ActivosFijosPage from './modules/activos-fijos/ActivosFijosPage'
@@ -44,6 +45,7 @@ export default function App() {
               <Route path="/conciliacion" element={<ConciliacionPage />} />
               <Route path="/ats" element={<ATSPage />} />
               <Route path="/ice" element={<ICEPage />} />
+              <Route path="/auditoria" element={<AuditoriaPage />} />
               <Route path="/retenciones" element={<RetencionesPage />} />
               <Route path="/nomina" element={<NominaPage />} />
               <Route path="/activos-fijos" element={<ActivosFijosPage />} />
