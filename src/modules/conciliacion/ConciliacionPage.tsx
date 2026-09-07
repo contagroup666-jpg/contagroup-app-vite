@@ -196,7 +196,7 @@ export default function ConciliacionPage() {
   async function guardarSaldoInicial() {
     if (!empresaId) return
     const valor = parseFloat(saldoInicialInput) || 0
-    await supabase.from('conciliacion_config').upsert({ empresa_id: empresaId, saldo_inicial_extracto: valor, updated_por: perfil?.id ?? null })
+    await supabase.from('conciliacion_config').upsert({ empresa_id: empresaId, saldo_inicial_extracto: valor, updated_por: perfil?.id ?? null, updated_at: new Date().toISOString() })
     await cargar()
   }
 

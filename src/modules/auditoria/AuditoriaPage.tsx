@@ -60,7 +60,6 @@ export default function AuditoriaPage() {
   const { perfil } = useAuth()
   const empresaId = perfil?.empresa_id ?? null
   const esSuperAdmin = perfil?.rol === 'Super Administrador'
-  const puedeVerVolumen = esSuperAdmin || perfil?.rol === 'Admin Empresa'
 
   const [tab, setTab] = useState<Tab>('historial')
   const [registros, setRegistros] = useState<Registro[]>([])
@@ -110,8 +109,9 @@ export default function AuditoriaPage() {
       p_minutos: 30,
     })
     if (volErr) {
+      // Rol sin permiso (Contador, Cajero, etc.) -> la RPC rechaza con excepción;
+      // se muestra simplemente "sin actividad reciente", sin alarmar con un error.
       setVolumen([])
-      if (!esSuperAdmin && !puedeVerVolumen) setErrorSeguridad(null) // rol sin permiso: solo se oculta, sin ruido
     } else {
       setVolumen((vol ?? []) as unknown as typeof volumen)
     }
