@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
 import type { Database } from '../../types/database'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Usuario = Database['public']['Tables']['usuarios']['Row']
 
@@ -168,7 +169,7 @@ function AdminEmpresaUsuariosSection({ perfil }: { perfil: Usuario }) {
       {error && <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">{error}</p>}
 
       {loading ? (
-        <p className="text-xs text-white/40">Cargando…</p>
+        <TablaSkeleton />
       ) : (
         <div className="rounded-2xl border border-white/10 overflow-hidden">
           <table className="w-full text-sm">
@@ -410,7 +411,7 @@ function ContadorAuxiliarSection({ perfil }: { perfil: Usuario }) {
       {error && <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">{error}</p>}
 
       {auxiliar === undefined ? (
-        <p className="text-xs text-white/40">Cargando…</p>
+        <TablaSkeleton />
       ) : auxiliar ? (
         <div className="rounded-2xl border border-white/10 p-4 flex items-center justify-between">
           <div>

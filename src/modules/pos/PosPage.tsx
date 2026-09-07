@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabaseClient'
 import { crearAsiento } from '../../lib/contabilidad'
 import { useAuth } from '../../context/AuthContext'
 import type { Database, FacturaItemJson, PagoPos } from '../../types/database'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Producto = Database['public']['Tables']['productos']['Row']
 type Turno = Database['public']['Tables']['pos_turnos']['Row']
@@ -611,7 +612,7 @@ export default function PosPage() {
         </p>
       )}
 
-      {loading && <p className="text-xs text-white/40">Cargando…</p>}
+      {loading && <TablaSkeleton />}
 
       {!loading && !turno && (
         <div className="rounded-xl border border-white/10 p-10 text-center max-w-sm mx-auto">

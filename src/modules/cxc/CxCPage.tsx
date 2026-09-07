@@ -4,6 +4,7 @@ import { crearAsiento } from '../../lib/contabilidad'
 import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Cargo = Database['public']['Tables']['cxc_cargos']['Row']
 type Abono = Database['public']['Tables']['cxc_abonos']['Row']
@@ -270,7 +271,7 @@ export default function CxCPage() {
       </div>
 
       {loading ? (
-        <p className="text-xs text-white/40">Cargando…</p>
+        <TablaSkeleton />
       ) : filasFiltradas.length === 0 ? (
         <EstadoVacio icono="💳" titulo="Sin cargos" descripcion="No hay cargos que coincidan con este filtro." />
       ) : (

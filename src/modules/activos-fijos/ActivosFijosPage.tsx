@@ -4,6 +4,7 @@ import { calcularDepreciacion, type ResultadoDepreciacion } from '../../lib/moto
 import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Activo = Database['public']['Tables']['activos_fijos']['Row']
 
@@ -184,7 +185,7 @@ export default function ActivosFijosPage() {
       {error && <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">{error}</p>}
 
       {loading ? (
-        <p className="text-xs text-white/40">Cargando…</p>
+        <TablaSkeleton />
       ) : activos.length === 0 ? (
         <EstadoVacio icono="🏭" titulo="Sin activos fijos registrados" descripcion="Registra el primer activo (equipo, mobiliario, vehículo…)." accion={{ label: '+ Nuevo Activo', onClick: abrirNuevo }} />
       ) : (

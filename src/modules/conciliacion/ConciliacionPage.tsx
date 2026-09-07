@@ -4,6 +4,7 @@ import { crearAsiento } from '../../lib/contabilidad'
 import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type MovConc = Database['public']['Tables']['conciliacion_movimientos']['Row']
 type Config = Database['public']['Tables']['config_cuentas_contables']['Row']
@@ -369,7 +370,7 @@ export default function ConciliacionPage() {
           Falta configurar la cuenta "Bancos" en Configuración contable — sin eso no se puede conciliar contra el libro diario.
         </p>
       )}
-      {loading && <p className="text-xs text-white/40">Cargando…</p>}
+      {loading && <TablaSkeleton />}
 
       {!loading && (
         <>

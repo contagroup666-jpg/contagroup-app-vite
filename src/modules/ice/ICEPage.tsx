@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Factura = Database['public']['Tables']['facturas']['Row']
 type Producto = Database['public']['Tables']['productos']['Row']
@@ -238,7 +239,7 @@ export default function ICEPage() {
       </p>
 
       {error && <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">{error}</p>}
-      {loading && <p className="text-xs text-white/40">Cargando…</p>}
+      {loading && <TablaSkeleton />}
 
       {!loading && (
         <>

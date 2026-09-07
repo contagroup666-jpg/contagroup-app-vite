@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import type { Database } from '../../types/database'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Empresa = Database['public']['Tables']['empresas']['Row']
 type Usuario = Database['public']['Tables']['usuarios']['Row']
@@ -157,7 +158,7 @@ export default function EmpresasTab() {
       )}
 
       {loading ? (
-        <p className="text-xs text-white/40">Cargando…</p>
+        <TablaSkeleton />
       ) : (
         <div className="rounded-2xl border border-white/10 overflow-hidden">
           <table className="w-full text-sm">

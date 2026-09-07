@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Cuenta = Database['public']['Tables']['plan_cuentas']['Row']
 type Config = Database['public']['Tables']['config_cuentas_contables']['Row']
@@ -112,7 +113,7 @@ export default function ConfigContablePage() {
         necesitan saber exactamente cuál cuenta usar para no contabilizar en el lugar equivocado.
       </p>
 
-      {loading && <p className="text-xs text-white/40">Cargando…</p>}
+      {loading && <TablaSkeleton />}
 
       {!loading && (
         <>

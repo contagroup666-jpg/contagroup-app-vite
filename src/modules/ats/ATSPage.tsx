@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Factura = Database['public']['Tables']['facturas']['Row']
 type Compra = Database['public']['Tables']['compras']['Row']
@@ -243,7 +244,7 @@ export default function ATSPage() {
           ⚠️ {comprasSinSustento.length} compra(s) de este periodo no tienen "Código de Sustento Tributario" (obligatorio para el SRI) — complétalas en Compras antes de exportar.
         </p>
       )}
-      {loading && <p className="text-xs text-white/40">Cargando…</p>}
+      {loading && <TablaSkeleton />}
 
       {!loading && (
         <>

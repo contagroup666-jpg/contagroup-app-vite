@@ -11,6 +11,7 @@ const TAMANO_LOTE_NOMINA = 5
 import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Empleado = Database['public']['Tables']['empleados']['Row']
 type Nomina = Database['public']['Tables']['nomina']['Row']
@@ -291,7 +292,7 @@ export default function NominaPage() {
       </div>
 
       {error && <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">{error}</p>}
-      {loading && <p className="text-xs text-white/40">Cargando…</p>}
+      {loading && <TablaSkeleton />}
 
       {!loading && tab === 'roles' && (
         <>
@@ -503,7 +504,7 @@ export default function NominaPage() {
           <div className="bg-[var(--color-bg-1)] border border-white/10 rounded-2xl p-6 w-full max-w-lg my-8" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-white mb-1">Detalle del rol — {verDetalle.periodo}</h3>
             <p className="text-xs text-white/40 mb-4">Bruto {fmt(verDetalle.total_bruto)} · IESS {fmt(verDetalle.total_iess)} · Neto {fmt(verDetalle.total_neto)}</p>
-            {cargandoDetalle && <p className="text-xs text-white/40">Cargando…</p>}
+            {cargandoDetalle && <TablaSkeleton />}
             {!cargandoDetalle && (
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {Object.entries(detallePorEmpleado).map(([empId, filas]) => (

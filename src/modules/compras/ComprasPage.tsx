@@ -4,6 +4,7 @@ import { crearAsiento } from '../../lib/contabilidad'
 import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Compra = Database['public']['Tables']['compras']['Row']
 type Proveedor = Database['public']['Tables']['proveedores']['Row']
@@ -385,7 +386,7 @@ export default function ComprasPage() {
 
       {error && <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">{error}</p>}
 
-      {loading && <p className="text-xs text-white/40">Cargando…</p>}
+      {loading && <TablaSkeleton />}
 
       {!loading && tab === 'compras' && (
         <>

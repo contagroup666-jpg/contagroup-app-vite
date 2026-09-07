@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import type { Database, EtapaLead } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Lead = Database['public']['Tables']['leads']['Row']
 type Actividad = Database['public']['Tables']['actividades']['Row']
@@ -212,7 +213,7 @@ export default function CrmPage() {
 
       {!error && tab === 'pipeline' && (
         <>
-          {loading && <p className="text-xs text-white/40">Cargando…</p>}
+          {loading && <TablaSkeleton />}
           {!loading && leads.length === 0 && (
             <EstadoVacio
               icono="🎯"
@@ -271,7 +272,7 @@ export default function CrmPage() {
 
       {!error && tab === 'actividades' && (
         <>
-          {loading && <p className="text-xs text-white/40">Cargando…</p>}
+          {loading && <TablaSkeleton />}
           {!loading && actividades.length === 0 && (
             <EstadoVacio
               icono="📅"

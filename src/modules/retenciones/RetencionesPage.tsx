@@ -4,6 +4,7 @@ import { crearAsiento } from '../../lib/contabilidad'
 import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
+import TablaSkeleton from '../../components/TablaSkeleton'
 
 type Retencion = Database['public']['Tables']['retenciones']['Row']
 type Proveedor = Database['public']['Tables']['proveedores']['Row']
@@ -248,7 +249,7 @@ export default function RetencionesPage() {
       {error && <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">{error}</p>}
 
       {loading ? (
-        <p className="text-xs text-white/40">Cargando…</p>
+        <TablaSkeleton />
       ) : retenciones.length === 0 ? (
         <EstadoVacio icono="📑" titulo="Sin retenciones" descripcion="Registra tu primer comprobante de retención." accion={{ label: '+ Nueva retención', onClick: abrirNueva }} />
       ) : (
