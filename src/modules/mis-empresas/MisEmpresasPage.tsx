@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import EstadoVacio from '../../components/EstadoVacio'
@@ -11,6 +12,7 @@ import TablaSkeleton from '../../components/TablaSkeleton'
 // las de otros contadores ni el resto de la plataforma.
 export default function MisEmpresasPage() {
   const { perfil, empresasAcceso, recargarEmpresasAcceso, cambiarEmpresaActiva } = useAuth()
+  const navigate = useNavigate()
   const [cupo, setCupo] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -38,6 +40,11 @@ export default function MisEmpresasPage() {
     setModalAbierto(true)
   }
 
+  function irATrabajar(empresaId: string) {
+    cambiarEmpresaActiva(empresaId)
+    navigate('/')
+  }
+
   async function confirmarCreacion(e: FormEvent) {
     e.preventDefault()
     if (!form.nombre.trim()) return setErrorForm('Ingresa el nombre de la empresa.')
@@ -53,7 +60,7 @@ export default function MisEmpresasPage() {
     if (err) return setErrorForm(err.message)
     setModalAbierto(false)
     await cargar()
-    if (data) cambiarEmpresaActiva(data as string)
+    if (data) irATrabajar(data as string)
   }
 
   const usadas = empresasAcceso.length
@@ -115,7 +122,10 @@ export default function MisEmpresasPage() {
                     <tr key={e.empresa_id} className="border-t border-white/5">
                       <td className="px-4 py-2.5 text-white text-xs font-medium">{e.nombre}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <button onClick={() => cambiarEmpresaActiva(e.empresa_id)} className="text-[11px] text-blue-300 hover:underline">
+                        <button
+                          onClick={() => irATrabajar(e.empresa_id)}
+                          className="rounded-lg bg-[var(--color-blue-5)] text-white text-[11px] font-semibold px-3 py-1.5 hover:bg-[var(--color-blue-6)]"
+                        >
                           Trabajar en esta empresa →
                         </button>
                       </td>
