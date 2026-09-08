@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { MODULOS, moduloVisible } from './modulos'
 
 export default function AppLayout() {
-  const { perfil, signOut } = useAuth()
+  const { perfil, empresasAcceso, empresaActivaId, cambiarEmpresaActiva, signOut } = useAuth()
 
   const modulosVisibles = MODULOS.filter((m) => moduloVisible(m, perfil?.rol, perfil?.permisos))
   const iniciales = (perfil?.nombre ?? '')
@@ -30,6 +30,23 @@ export default function AppLayout() {
             )}
           </div>
         </div>
+
+        {empresasAcceso.length > 0 && (
+          <div className="px-3 pt-3">
+            <label className="block text-[10px] text-white/35 uppercase tracking-wide mb-1 px-1">Empresa activa</label>
+            <select
+              value={empresaActivaId ?? ''}
+              onChange={(e) => cambiarEmpresaActiva(e.target.value)}
+              className="w-full rounded-lg bg-white/5 border border-white/10 px-2.5 py-2 text-[12.5px] text-white outline-none focus:border-[var(--color-gold)]/50"
+            >
+              {empresasAcceso.map((e) => (
+                <option key={e.empresa_id} value={e.empresa_id}>
+                  {e.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <nav className="flex-1 py-3 px-2.5 space-y-0.5 overflow-y-auto">
           {modulosVisibles.map((m) => (

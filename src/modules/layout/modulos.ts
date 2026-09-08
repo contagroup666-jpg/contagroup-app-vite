@@ -30,6 +30,13 @@ export const MODULOS: ModuloDef[] = [
     rolesPermitidos: ['Admin Empresa', 'Contador General'],
   },
   {
+    id: 'mis-empresas',
+    label: 'Mis Empresas',
+    path: '/mis-empresas',
+    icono: '🏢',
+    rolesPermitidos: ['Contador General'],
+  },
+  {
     id: 'dashboard',
     label: 'Panel principal',
     path: '/',

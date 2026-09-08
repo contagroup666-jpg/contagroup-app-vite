@@ -4,15 +4,26 @@ import { supabase } from '../lib/supabaseClient'
 import type { Database } from '../types/database'
 
 type Perfil = Database['public']['Tables']['usuarios']['Row']
+type EmpresaAcceso = { empresa_id: string; nombre: string }
 
 interface AuthState {
   session: Session | null
   perfil: Perfil | null
   loading: boolean
   error: string | null
+  // Multiempresa (Contador General / Contador Auxiliar): estos usuarios no tienen
+  // una empresa fija (usuarios.empresa_id es null) — operan sobre varias empresas
+  // vía accesos_multiempresa, y eligen cuál tienen activa en cada momento.
+  // `perfil.empresa_id` se sobreescribe en memoria con la empresa activa para que
+  // el resto del sistema (que ya lee perfil.empresa_id en todas partes) funcione
+  // sin cambios.
+  empresasAcceso: EmpresaAcceso[]
+  empresaActivaId: string | null
+  cambiarEmpresaActiva: (empresaId: string) => void
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signInDemo: () => Promise<{ error: string | null }>
   signOut: () => Promise<void>
+  recargarEmpresasAcceso: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined)
@@ -20,11 +31,33 @@ const AuthContext = createContext<AuthState | undefined>(undefined)
 const DEMO_EMAIL = 'demo@contagroup.app'
 const DEMO_PASSWORD = 'ContaDemo2026!'
 
+function claveEmpresaActiva(userId: string) {
+  return `contagroup_empresa_activa_${userId}`
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
-  const [perfil, setPerfil] = useState<Perfil | null>(null)
+  const [perfilBase, setPerfilBase] = useState<Perfil | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [empresasAcceso, setEmpresasAcceso] = useState<EmpresaAcceso[]>([])
+  const [empresaActivaId, setEmpresaActivaId] = useState<string | null>(null)
+
+  async function cargarEmpresasAcceso(userId: string) {
+    const { data } = await supabase
+      .from('accesos_multiempresa')
+      .select('empresa_id, empresas(nombre)')
+      .eq('usuario_id', userId)
+      .eq('estado', 'Activo')
+    type Fila = { empresa_id: string; empresas: { nombre: string } | null }
+    const filas = ((data ?? []) as unknown as Fila[]).map((f) => ({ empresa_id: f.empresa_id, nombre: f.empresas?.nombre ?? 'Empresa' }))
+    setEmpresasAcceso(filas)
+
+    const guardada = localStorage.getItem(claveEmpresaActiva(userId))
+    const activa = filas.find((f) => f.empresa_id === guardada)?.empresa_id ?? filas[0]?.empresa_id ?? null
+    setEmpresaActivaId(activa)
+    return activa
+  }
 
   async function cargarPerfil(userId: string) {
     const { data, error: err } = await supabase
@@ -35,10 +68,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (err) {
       // No tumbamos la sesión por esto: mostramos el error y dejamos que la persona reintente o cierre sesión.
       setError('No se pudo cargar tu perfil de usuario. Intenta recargar la página.')
-      setPerfil(null)
+      setPerfilBase(null)
       return
     }
-    setPerfil(data as unknown as Perfil)
+    const fila = data as unknown as Perfil
+    setPerfilBase(fila)
+    if (!fila.empresa_id && (fila.rol === 'Contador General' || fila.rol === 'Contador Auxiliar')) {
+      await cargarEmpresasAcceso(userId)
+    } else {
+      setEmpresasAcceso([])
+      setEmpresaActivaId(null)
+    }
   }
 
   useEffect(() => {
@@ -56,7 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (nuevaSesion) {
         await cargarPerfil(nuevaSesion.user.id)
       } else {
-        setPerfil(null)
+        setPerfilBase(null)
+        setEmpresasAcceso([])
+        setEmpresaActivaId(null)
       }
     })
 
@@ -65,6 +107,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sub.subscription.unsubscribe()
     }
   }, [])
+
+  function cambiarEmpresaActiva(empresaId: string) {
+    if (!session) return
+    setEmpresaActivaId(empresaId)
+    localStorage.setItem(claveEmpresaActiva(session.user.id), empresaId)
+  }
+
+  async function recargarEmpresasAcceso() {
+    if (!session) return
+    await cargarEmpresasAcceso(session.user.id)
+  }
+
+  // perfil "efectivo": para usuarios normales, empresa_id ya viene fijo desde la
+  // tabla usuarios. Para Contador General/Auxiliar, se sobreescribe con la
+  // empresa que tienen activa en este momento.
+  const perfil: Perfil | null =
+    perfilBase && empresasAcceso.length > 0 ? { ...perfilBase, empresa_id: empresaActivaId } : perfilBase
 
   async function signIn(email: string, password: string) {
     setError(null)
@@ -85,12 +144,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     await supabase.auth.signOut()
-    setPerfil(null)
+    setPerfilBase(null)
     setSession(null)
+    setEmpresasAcceso([])
+    setEmpresaActivaId(null)
   }
 
   return (
-    <AuthContext.Provider value={{ session, perfil, loading, error, signIn, signInDemo, signOut }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        perfil,
+        loading,
+        error,
+        empresasAcceso,
+        empresaActivaId,
+        cambiarEmpresaActiva,
+        signIn,
+        signInDemo,
+        signOut,
+        recargarEmpresasAcceso,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
