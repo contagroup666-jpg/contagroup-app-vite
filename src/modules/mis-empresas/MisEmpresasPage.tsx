@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import EstadoVacio from '../../components/EstadoVacio'
 import TablaSkeleton from '../../components/TablaSkeleton'
+import { PLANES, type Plan } from '../../lib/planes'
 
 // Autoservicio para el rol Contador General: puede crear sus propias
 // empresas (cada una sembrada con plan de cuentas base) hasta el cupo que
@@ -14,6 +15,7 @@ export default function MisEmpresasPage() {
   const { perfil, empresasAcceso, recargarEmpresasAcceso, cambiarEmpresaActiva } = useAuth()
   const navigate = useNavigate()
   const [cupo, setCupo] = useState<number | null>(null)
+  const [plan, setPlan] = useState<Plan | null>(null)
   const [loading, setLoading] = useState(true)
 
   const [modalAbierto, setModalAbierto] = useState(false)
@@ -23,8 +25,10 @@ export default function MisEmpresasPage() {
 
   async function cargar() {
     setLoading(true)
-    const { data } = await supabase.from('usuarios').select('cupo_empresas').eq('id', perfil?.id ?? '').maybeSingle()
-    setCupo((data as { cupo_empresas: number | null } | null)?.cupo_empresas ?? null)
+    const { data } = await supabase.from('usuarios').select('cupo_empresas, plan').eq('id', perfil?.id ?? '').maybeSingle()
+    const fila = data as { cupo_empresas: number | null; plan: Plan | null } | null
+    setCupo(fila?.cupo_empresas ?? null)
+    setPlan(fila?.plan ?? null)
     await recargarEmpresasAcceso()
     setLoading(false)
   }
@@ -78,7 +82,7 @@ export default function MisEmpresasPage() {
           <div className="rounded-2xl border border-white/10 p-4 mb-4 flex items-center justify-between flex-wrap gap-3">
             <div className="flex gap-6">
               <div>
-                <p className="text-[11px] text-white/40">Cupo asignado</p>
+                <p className="text-[11px] text-white/40">Cupo asignado{plan ? ` · Plan ${PLANES[plan].etiqueta}` : ''}</p>
                 <p className="text-xl font-semibold text-white">{cupo ?? '—'}</p>
               </div>
               <div>

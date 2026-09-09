@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import type { Database, Rol } from '../../types/database'
 import TablaSkeleton from '../../components/TablaSkeleton'
+import { PLANES, etiquetaPlan, type Plan } from '../../lib/planes'
 
 type Usuario = Database['public']['Tables']['usuarios']['Row']
 type Empresa = Database['public']['Tables']['empresas']['Row']
@@ -34,6 +35,7 @@ const VACIO = {
   permisos: { pos: false, ventas: true, inventario: true, contabilidad: true, nomina: false },
   roles_gestionables: [] as string[],
   cupo_empresas: '',
+  plan: '' as Plan | '', // '' = personalizado (cupo manual)
 }
 
 export default function UsuariosTab() {
@@ -96,6 +98,7 @@ export default function UsuariosTab() {
       },
       roles_gestionables: Array.isArray(u.roles_gestionables) ? u.roles_gestionables : [],
       cupo_empresas: u.cupo_empresas != null ? String(u.cupo_empresas) : '',
+      plan: u.plan ?? '',
     })
     setErrorForm(null)
     setMostrarForm(true)
@@ -143,7 +146,13 @@ export default function UsuariosTab() {
     if (editando) payload.id = editando.id
     if (form.password) payload.password = form.password
     if (form.rol === 'Admin Empresa') payload.roles_gestionables = form.roles_gestionables
-    if (form.rol === 'Contador General') payload.cupo_empresas = form.cupo_empresas === '' ? null : parseInt(form.cupo_empresas)
+    if (form.rol === 'Contador General') {
+      payload.plan = form.plan === '' ? null : form.plan
+      // El cupo manual solo se usa si es "Personalizado" (plan vacío) — si hay
+      // plan, el servidor lo recalcula y este valor se ignora, pero se manda
+      // igual por si el usuario lo tenía escrito de una edición anterior.
+      payload.cupo_empresas = form.cupo_empresas === '' ? null : parseInt(form.cupo_empresas)
+    }
 
     const { data, error: err } = await supabase.functions.invoke('admin-users', { body: payload })
 
@@ -261,7 +270,7 @@ export default function UsuariosTab() {
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-right text-white/60 text-xs">
-                        {c.rol === 'Contador General' ? (c.cupo_empresas ?? <span className="text-white/30">Sin cupo</span>) : '—'}
+                        {c.rol === 'Contador General' ? etiquetaPlan(c.plan, c.cupo_empresas) : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-right text-white font-medium text-xs">{suyas.length}</td>
                       <td className="px-4 py-2.5 text-white/50 text-xs">{nombresEmp.join(', ') || '—'}</td>
@@ -374,15 +383,26 @@ export default function UsuariosTab() {
 
               {form.rol === 'Contador General' && (
                 <div>
-                  <label className="block text-xs text-white/50 mb-1">Cupo de empresas (autoservicio)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.cupo_empresas}
-                    onChange={(e) => setForm({ ...form, cupo_empresas: e.target.value })}
-                    placeholder="0"
+                  <label className="block text-xs text-white/50 mb-1">Plan (cupo de empresas)</label>
+                  <select
+                    value={form.plan}
+                    onChange={(e) => setForm({ ...form, plan: e.target.value as Plan | '' })}
                     className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-blue-5)]"
-                  />
+                  >
+                    <option value="free">Free — {PLANES.free.cupo} empresas</option>
+                    <option value="basico">Básico — {PLANES.basico.cupo} empresas</option>
+                    <option value="">Personalizado</option>
+                  </select>
+                  {form.plan === '' && (
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.cupo_empresas}
+                      onChange={(e) => setForm({ ...form, cupo_empresas: e.target.value })}
+                      placeholder="Cupo manual"
+                      className="w-full mt-2 rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-blue-5)]"
+                    />
+                  )}
                 </div>
               )}
 

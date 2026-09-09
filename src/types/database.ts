@@ -43,6 +43,7 @@ export interface Database {
           rol: Rol
           empresa_id: string | null
           cupo_empresas: number | null
+          plan: 'free' | 'basico' | null
           acceso_nomina: boolean
           permisos: Record<string, boolean>
           roles_gestionables: string[]
