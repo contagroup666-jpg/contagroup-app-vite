@@ -5,6 +5,8 @@ import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
 import TablaSkeleton from '../../components/TablaSkeleton'
+import ControlesPaginacion from '../../components/ControlesPaginacion'
+import { usePaginacion } from '../../hooks/usePaginacion'
 
 type Compra = Database['public']['Tables']['compras']['Row']
 type Proveedor = Database['public']['Tables']['proveedores']['Row']
@@ -357,6 +359,18 @@ export default function ComprasPage() {
     return { filas, totalPorPagar, totalVencido, totalPorVencer, totalPagadoMes }
   }, [compras])
 
+  // Paginación del lado del cliente SOLO para la tabla de la pestaña
+  // "Facturas de Compra". La consulta que trae `compras` sigue trayendo todo
+  // a propósito: la pestaña CxP necesita el conjunto completo para sumar
+  // correctamente lo por pagar/vencido/pagado del mes — paginar esa consulta
+  // rompería esos totales.
+  const pagCompras = usePaginacion(30)
+  useEffect(() => {
+    pagCompras.setTotalFilas(compras.length)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compras.length])
+  const comprasPagina = useMemo(() => compras.slice(pagCompras.rango[0], pagCompras.rango[1] + 1), [compras, pagCompras.rango])
+
   if (!empresaId) {
     return (
       <div className="p-6">
@@ -407,7 +421,7 @@ export default function ComprasPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {compras.map((c) => (
+                  {comprasPagina.map((c) => (
                     <tr key={c.id} className="border-t border-white/5 hover:bg-white/[0.03]">
                       <td className="px-4 py-2.5 text-white font-mono text-xs">{c.numero}</td>
                       <td className="px-4 py-2.5 text-white/60 text-xs">{c.fecha}</td>
@@ -423,6 +437,18 @@ export default function ComprasPage() {
                   ))}
                 </tbody>
               </table>
+              <div className="px-2">
+                <ControlesPaginacion
+                  pagina={pagCompras.pagina}
+                  totalPaginas={pagCompras.totalPaginas}
+                  totalFilas={pagCompras.totalFilas}
+                  porPagina={pagCompras.porPagina}
+                  hayAnterior={pagCompras.hayAnterior}
+                  haySiguiente={pagCompras.haySiguiente}
+                  onAnterior={pagCompras.anterior}
+                  onSiguiente={pagCompras.siguiente}
+                />
+              </div>
             </div>
           )}
         </>

@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
 import TablaSkeleton from '../../components/TablaSkeleton'
+import ControlesPaginacion from '../../components/ControlesPaginacion'
+import { usePaginacion } from '../../hooks/usePaginacion'
 
 type Registro = Database['public']['Tables']['auditoria']['Row']
 
@@ -64,6 +66,7 @@ export default function AuditoriaPage() {
 
   const [tab, setTab] = useState<Tab>('historial')
   const [registros, setRegistros] = useState<Registro[]>([])
+  const pag = usePaginacion(30)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -84,16 +87,17 @@ export default function AuditoriaPage() {
       return
     }
     setLoading(true)
-    let q = supabase.from('auditoria').select('*').order('created_at', { ascending: false }).limit(300)
+    let q = supabase.from('auditoria').select('*', { count: 'exact' }).order('created_at', { ascending: false })
     if (!esSuperAdmin) q = q.eq('empresa_id', empresaId)
     if (filtroTabla) q = q.eq('tabla', filtroTabla)
     if (filtroAccion) q = q.eq('accion', filtroAccion)
     if (desde) q = q.gte('created_at', desde)
     if (hasta) q = q.lte('created_at', `${hasta}T23:59:59`)
-    const { data, error: err } = await q
+    const { data, count, error: err } = await q.range(...pag.rango)
     if (err) setError('No se pudo cargar el historial.')
     else setError(null)
     setRegistros((data ?? []) as unknown as Registro[])
+    pag.setTotalFilas(count ?? 0)
     setLoading(false)
   }
 
@@ -121,7 +125,12 @@ export default function AuditoriaPage() {
   useEffect(() => {
     cargarHistorial()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [empresaId, filtroTabla, filtroAccion, desde, hasta])
+  }, [empresaId, filtroTabla, filtroAccion, desde, hasta, pag.pagina])
+
+  useEffect(() => {
+    pag.reiniciar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroTabla, filtroAccion, desde, hasta])
 
   useEffect(() => {
     if (tab === 'seguridad') cargarSeguridad()
@@ -232,6 +241,16 @@ export default function AuditoriaPage() {
               )}
             </div>
           )}
+          <ControlesPaginacion
+            pagina={pag.pagina}
+            totalPaginas={pag.totalPaginas}
+            totalFilas={pag.totalFilas}
+            porPagina={pag.porPagina}
+            hayAnterior={pag.hayAnterior}
+            haySiguiente={pag.haySiguiente}
+            onAnterior={pag.anterior}
+            onSiguiente={pag.siguiente}
+          />
         </>
       )}
 

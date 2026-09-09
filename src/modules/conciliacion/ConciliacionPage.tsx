@@ -5,6 +5,8 @@ import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
 import TablaSkeleton from '../../components/TablaSkeleton'
+import ControlesPaginacion from '../../components/ControlesPaginacion'
+import { usePaginacion } from '../../hooks/usePaginacion'
 
 type MovConc = Database['public']['Tables']['conciliacion_movimientos']['Row']
 type Config = Database['public']['Tables']['config_cuentas_contables']['Row']
@@ -173,6 +175,20 @@ export default function ConciliacionPage() {
   )
   const lineasDisponibles = useMemo(() => lineasBanco.filter((l) => !idsYaConciliados.has(l.id)), [lineasBanco, idsYaConciliados])
   const pendientesBanco = useMemo(() => movimientos.filter((m) => m.estado === 'pendiente'), [movimientos])
+
+  // Paginación del lado del cliente SOLO para la tabla "Todos los movimientos
+  // bancarios" (historial de repaso). La consulta que trae `movimientos`
+  // sigue trayendo todo a propósito — el motor de diagnóstico y de
+  // conciliación automática necesitan el conjunto completo para sumar bien
+  // y no reutilizar una línea ya conciliada; paginar esa consulta rompería
+  // esos cálculos. Esto solo evita que el navegador renderice miles de filas
+  // de tabla de golpe.
+  const pagMovs = usePaginacion(40)
+  useEffect(() => {
+    pagMovs.setTotalFilas(movimientos.length)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movimientos.length])
+  const movimientosPagina = useMemo(() => movimientos.slice(pagMovs.rango[0], pagMovs.rango[1] + 1), [movimientos, pagMovs.rango])
 
   const resumen = useMemo(() => {
     const importados = movimientos.length
@@ -562,7 +578,7 @@ export default function ConciliacionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {movimientos.map((m) => {
+                  {movimientosPagina.map((m) => {
                     const linea = m.asiento_linea_id ? lineasBanco.find((l) => l.id === m.asiento_linea_id) : null
                     return (
                       <tr key={m.id} className="border-t border-white/5 hover:bg-white/[0.03] align-top">
@@ -620,6 +636,18 @@ export default function ConciliacionPage() {
                 </tbody>
               </table>
             )}
+            <div className="px-2">
+              <ControlesPaginacion
+                pagina={pagMovs.pagina}
+                totalPaginas={pagMovs.totalPaginas}
+                totalFilas={pagMovs.totalFilas}
+                porPagina={pagMovs.porPagina}
+                hayAnterior={pagMovs.hayAnterior}
+                haySiguiente={pagMovs.haySiguiente}
+                onAnterior={pagMovs.anterior}
+                onSiguiente={pagMovs.siguiente}
+              />
+            </div>
           </div>
 
           {cierres.length > 0 && (
