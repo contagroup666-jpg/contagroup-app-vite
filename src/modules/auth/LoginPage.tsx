@@ -6,8 +6,11 @@ const CARACTERISTICAS_COMUNES = [
   'Contabilidad completa con libro diario y plan de cuentas',
   'Facturación, POS y control de inventario',
   'Nómina, décimos y depreciación de activos fijos',
-  'Un Contador Auxiliar incluido para repartir el trabajo',
 ]
+
+const CARACTERISTICA_AUXILIAR = 'Un Contador Auxiliar incluido para repartir el trabajo'
+
+const WHATSAPP_CONTACTO = '593960210788'
 
 export default function LoginPage() {
   const { signIn, signInDemo, error } = useAuth()
@@ -139,6 +142,12 @@ export default function LoginPage() {
                       {c}
                     </li>
                   ))}
+                  {clave === 'basico' && (
+                    <li className="flex items-start gap-2 text-xs text-white/60">
+                      <span className="text-[var(--color-emerald-400)] mt-0.5">✓</span>
+                      {CARACTERISTICA_AUXILIAR}
+                    </li>
+                  )}
                 </ul>
               </div>
             )
@@ -146,6 +155,17 @@ export default function LoginPage() {
         </div>
         <p className="text-[11px] text-white/30 text-center mt-5">
           Las cuentas se activan a través del administrador del sistema — inicia sesión arriba si ya tienes acceso.
+        </p>
+        <p className="text-[11px] text-white/40 text-center mt-2">
+          ¿Dudas? Escríbenos por{' '}
+          <a
+            href={`https://wa.me/${WHATSAPP_CONTACTO}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--color-emerald-400)] font-medium hover:underline"
+          >
+            WhatsApp: +593 96 021 0788
+          </a>
         </p>
       </div>
     </div>
