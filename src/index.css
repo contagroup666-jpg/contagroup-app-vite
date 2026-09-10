@@ -87,6 +87,13 @@ body {
   border-radius: 6px;
 }
 
+/* Cajón lateral de formularios (Drawer) — se desliza desde el borde derecho,
+   como sacar una hoja del libro, en vez del modal centrado genérico. */
+@keyframes drawer-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
 button, a, input, select {
   transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
 }
