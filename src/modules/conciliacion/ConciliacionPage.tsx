@@ -112,6 +112,8 @@ export default function ConciliacionPage() {
   const [corrigiendo, setCorrigiendo] = useState<string | null>(null)
   const [correccionCuenta, setCorreccionCuenta] = useState<Record<string, string>>({})
   const [guardandoCierre, setGuardandoCierre] = useState(false)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<{ fecha: string; descripcion: string; monto: string }>({ fecha: '', descripcion: '', monto: '' })
 
   async function cargar() {
     if (!empresaId) {
@@ -265,6 +267,22 @@ export default function ConciliacionPage() {
     await cargar()
   }
 
+  function abrirEdicion(m: MovConc) {
+    setEditandoId(m.id)
+    setEditForm({ fecha: m.fecha, descripcion: m.descripcion, monto: String(m.monto) })
+  }
+
+  async function guardarEdicion(id: string) {
+    const monto = parseFloat(editForm.monto)
+    if (!editForm.fecha || !editForm.descripcion.trim() || Number.isNaN(monto)) return
+    await supabase
+      .from('conciliacion_movimientos')
+      .update({ fecha: editForm.fecha, descripcion: editForm.descripcion.trim(), monto })
+      .eq('id', id)
+    setEditandoId(null)
+    await cargar()
+  }
+
   async function limpiarTodo() {
     if (!empresaId) return
     if (!confirm('¿Eliminar TODOS los movimientos bancarios importados (conciliados y pendientes) de esta empresa?')) return
@@ -350,6 +368,12 @@ export default function ConciliacionPage() {
       setCorrigiendo(null)
       await cargar()
     }
+  }
+
+  async function eliminarCierre(id: string) {
+    if (!confirm('¿Eliminar este cierre de conciliación del historial? Esto no modifica los movimientos ni los asientos, solo borra el registro guardado.')) return
+    await supabase.from('conciliacion_cierres').delete().eq('id', id)
+    await cargar()
   }
 
   async function guardarCierre() {
@@ -580,11 +604,44 @@ export default function ConciliacionPage() {
                 <tbody>
                   {movimientosPagina.map((m) => {
                     const linea = m.asiento_linea_id ? lineasBanco.find((l) => l.id === m.asiento_linea_id) : null
+                    const editando = editandoId === m.id
                     return (
                       <tr key={m.id} className="border-t border-white/5 hover:bg-white/[0.03] align-top">
-                        <td className="px-4 py-2.5 text-white/60 text-xs whitespace-nowrap">{m.fecha}</td>
-                        <td className="px-4 py-2.5 text-white text-xs">{m.descripcion}</td>
-                        <td className={`px-4 py-2.5 text-right font-mono text-xs font-medium whitespace-nowrap ${m.monto >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(m.monto)}</td>
+                        {editando ? (
+                          <>
+                            <td className="px-4 py-2.5">
+                              <input
+                                type="date"
+                                value={editForm.fecha}
+                                onChange={(e) => setEditForm((f) => ({ ...f, fecha: e.target.value }))}
+                                className="w-full rounded-md bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-[var(--color-blue-5)]"
+                              />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <input
+                                type="text"
+                                value={editForm.descripcion}
+                                onChange={(e) => setEditForm((f) => ({ ...f, descripcion: e.target.value }))}
+                                className="w-full rounded-md bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-[var(--color-blue-5)]"
+                              />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editForm.monto}
+                                onChange={(e) => setEditForm((f) => ({ ...f, monto: e.target.value }))}
+                                className="w-full rounded-md bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white text-right outline-none focus:border-[var(--color-blue-5)]"
+                              />
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-2.5 text-white/60 text-xs whitespace-nowrap">{m.fecha}</td>
+                            <td className="px-4 py-2.5 text-white text-xs">{m.descripcion}</td>
+                            <td className={`px-4 py-2.5 text-right font-mono text-xs font-medium whitespace-nowrap ${m.monto >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(m.monto)}</td>
+                          </>
+                        )}
                         <td className="px-4 py-2.5 text-xs">
                           {linea ? (
                             <span className="text-blue-300">{linea.numero}</span>
@@ -621,14 +678,32 @@ export default function ConciliacionPage() {
                           {m.estado === 'conciliado' ? <span className="text-emerald-400">✅ Conciliado</span> : <span className="text-amber-400">⏳ Pendiente</span>}
                         </td>
                         <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                          {m.estado === 'conciliado' && (
-                            <button onClick={() => desconciliar(m.id)} className="text-[11px] text-white/30 hover:text-amber-400 mr-2">
-                              Desconciliar
-                            </button>
+                          {editando ? (
+                            <>
+                              <button onClick={() => guardarEdicion(m.id)} className="text-[11px] text-emerald-400 hover:underline mr-2">
+                                Guardar
+                              </button>
+                              <button onClick={() => setEditandoId(null)} className="text-[11px] text-white/40 hover:underline">
+                                Cancelar
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              {m.estado === 'conciliado' && (
+                                <button onClick={() => desconciliar(m.id)} className="text-[11px] text-white/30 hover:text-amber-400 mr-2">
+                                  Desconciliar
+                                </button>
+                              )}
+                              {m.estado === 'pendiente' && (
+                                <button onClick={() => abrirEdicion(m)} className="text-white/30 hover:text-white text-xs mr-2" title="Corregir fecha, descripción o monto">
+                                  ✏️
+                                </button>
+                              )}
+                              <button onClick={() => eliminarMovimiento(m.id)} className="text-white/30 hover:text-red-400 text-xs">
+                                🗑
+                              </button>
+                            </>
                           )}
-                          <button onClick={() => eliminarMovimiento(m.id)} className="text-white/30 hover:text-red-400 text-xs">
-                            🗑
-                          </button>
                         </td>
                       </tr>
                     )
@@ -661,6 +736,7 @@ export default function ConciliacionPage() {
                     <th className="px-4 py-2 font-medium text-right">Saldo libro</th>
                     <th className="px-4 py-2 font-medium text-right">Diferencia no explicada</th>
                     <th className="px-4 py-2 font-medium text-right">Pendientes</th>
+                    <th className="px-4 py-2 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -671,6 +747,11 @@ export default function ConciliacionPage() {
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-white/70">{fmt(c.saldo_libro)}</td>
                       <td className={`px-4 py-2.5 text-right font-mono text-xs font-semibold ${Math.abs(c.diferencia_no_explicada) < 0.01 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(c.diferencia_no_explicada)}</td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-amber-300">{c.num_pendientes_banco} banco / {c.num_pendientes_libro} libro</td>
+                      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                        <button onClick={() => eliminarCierre(c.id)} className="text-white/30 hover:text-red-400 text-xs" title="Eliminar este cierre del historial">
+                          🗑
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
