@@ -1,5 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { PLANES } from '../../lib/planes'
+
+const CARACTERISTICAS_COMUNES = [
+  'Contabilidad completa con libro diario y plan de cuentas',
+  'Facturación, POS y control de inventario',
+  'Nómina, décimos y depreciación de activos fijos',
+  'Un Contador Auxiliar incluido para repartir el trabajo',
+]
 
 export default function LoginPage() {
   const { signIn, signInDemo, error } = useAuth()
@@ -22,7 +30,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-0)] px-4">
+    <div className="min-h-screen bg-[var(--color-bg-0)] px-4 py-10 flex flex-col items-center">
       <div className="w-full max-w-sm">
         <div className="bg-[var(--color-bg-1)] border border-white/10 rounded-2xl p-8 shadow-2xl">
           <div className="text-center mb-6">
@@ -89,6 +97,56 @@ export default function LoginPage() {
             Explora el sistema con una empresa de ejemplo, sin registrarte
           </p>
         </div>
+      </div>
+
+      {/* Vitrina de planes para Contador General — informativa, no hay auto-registro:
+          las cuentas las crea el administrador del sistema. */}
+      <div className="w-full max-w-3xl mt-10">
+        <div className="text-center mb-5">
+          <p className="text-[11px] font-medium tracking-wide text-[var(--color-gold)]">Para contadores independientes</p>
+          <h2 className="text-xl font-semibold text-white mt-1" style={{ fontFamily: 'var(--font-serif, inherit)' }}>
+            Un plan para cada volumen de clientes
+          </h2>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {(Object.keys(PLANES) as (keyof typeof PLANES)[]).map((clave) => {
+            const p = PLANES[clave]
+            const destacado = clave === 'basico'
+            return (
+              <div
+                key={clave}
+                className={`rounded-2xl border p-6 flex flex-col ${
+                  destacado
+                    ? 'border-[var(--color-gold)]/50 bg-gradient-to-b from-[var(--color-gold)]/[0.06] to-transparent'
+                    : 'border-white/10 bg-white/[0.02]'
+                }`}
+              >
+                <div className="flex items-baseline justify-between mb-1">
+                  <h3 className="text-base font-semibold text-white">{p.etiqueta}</h3>
+                  {destacado && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[var(--color-gold)]/15 text-[var(--color-gold)]">
+                      Más cupo
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-white/50 mb-4">
+                  Hasta <span className="text-white font-medium">{p.cupo} empresas</span> bajo tu gestión
+                </p>
+                <ul className="space-y-2 flex-1">
+                  {CARACTERISTICAS_COMUNES.map((c) => (
+                    <li key={c} className="flex items-start gap-2 text-xs text-white/60">
+                      <span className="text-[var(--color-emerald-400)] mt-0.5">✓</span>
+                      {c}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
+        <p className="text-[11px] text-white/30 text-center mt-5">
+          Las cuentas se activan a través del administrador del sistema — inicia sesión arriba si ya tienes acceso.
+        </p>
       </div>
     </div>
   )
