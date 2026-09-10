@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabaseClient'
 import type { Database } from '../../types/database'
 import TablaSkeleton from '../../components/TablaSkeleton'
 import EstadoVacio from '../../components/EstadoVacio'
+import PageHeader from '../../components/PageHeader'
+import Th from '../../components/Th'
 
 type Cuenta = Database['public']['Tables']['plan_cuentas']['Row']
 
@@ -43,20 +45,18 @@ export default function PlanCuentasPage() {
 
   return (
     <div className="p-6 max-w-4xl">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-base font-semibold text-white">Plan de cuentas</h2>
-          <p className="text-xs text-white/40 mt-0.5">
-            {cuentas.length} cuenta{cuentas.length === 1 ? '' : 's'} en la empresa activa
-          </p>
-        </div>
-        <input
-          value={filtro}
-          onChange={(e) => setFiltro(e.target.value)}
-          placeholder="Buscar código o nombre…"
-          className="rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-xs text-white outline-none focus:border-[var(--color-blue-5)] w-56"
-        />
-      </div>
+      <PageHeader
+        titulo="Plan de cuentas"
+        meta={`${cuentas.length} cuenta${cuentas.length === 1 ? '' : 's'} en la empresa activa`}
+        acciones={
+          <input
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            placeholder="Buscar código o nombre…"
+            className="rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-xs text-white outline-none focus:border-[var(--color-blue-5)] w-56"
+          />
+        }
+      />
 
       {loading && <TablaSkeleton columnas={4} />}
 
@@ -78,11 +78,11 @@ export default function PlanCuentasPage() {
         <div className="rounded-xl border border-white/10 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-white/5 text-left text-white/50 text-[11px] uppercase tracking-wide">
-                <th className="px-3 py-2 font-medium">Código</th>
-                <th className="px-3 py-2 font-medium">Nombre</th>
-                <th className="px-3 py-2 font-medium">Tipo</th>
-                <th className="px-3 py-2 font-medium text-right">Saldo</th>
+              <tr>
+                <Th>Código</Th>
+                <Th>Nombre</Th>
+                <Th>Tipo</Th>
+                <Th className="text-right">Saldo</Th>
               </tr>
             </thead>
             <tbody>

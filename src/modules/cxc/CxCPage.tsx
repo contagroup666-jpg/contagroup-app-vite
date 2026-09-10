@@ -5,6 +5,9 @@ import { useAuth } from '../../context/AuthContext'
 import type { Database } from '../../types/database'
 import EstadoVacio from '../../components/EstadoVacio'
 import TablaSkeleton from '../../components/TablaSkeleton'
+import Th from '../../components/Th'
+import EstadoBadge from '../../components/EstadoBadge'
+import PageHeader from '../../components/PageHeader'
 
 type Cargo = Database['public']['Tables']['cxc_cargos']['Row']
 type Abono = Database['public']['Tables']['cxc_abonos']['Row']
@@ -13,6 +16,13 @@ type Config = Database['public']['Tables']['config_cuentas_contables']['Row']
 
 function fmt(n: number) {
   return new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(n || 0)
+}
+
+function estadoCargo(f: { saldo: number; vencido: boolean; diasParaVencer: number | null }): { texto: string; tono: 'exito' | 'alerta' | 'peligro' | 'neutral' } {
+  if (f.saldo <= 0.01) return { texto: 'Pagado', tono: 'exito' }
+  if (f.vencido) return { texto: 'Vencido', tono: 'peligro' }
+  if (f.diasParaVencer !== null && f.diasParaVencer <= 7) return { texto: 'Por vencer', tono: 'alerta' }
+  return { texto: 'Al día', tono: 'neutral' }
 }
 
 const CARGO_VACIO = { cliente_id: '', concepto: '', fecha: new Date().toISOString().slice(0, 10), total: '', fecha_vencimiento: '', observaciones: '' }
@@ -226,13 +236,15 @@ export default function CxCPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-lg font-semibold text-white">Cuentas por Cobrar</h1>
-        <button onClick={() => setMostrarForm(true)} className="rounded-lg bg-[var(--color-blue-5)] text-white text-xs font-semibold px-3 py-1.5 hover:bg-[var(--color-blue-6)]">
-          + Nuevo cargo
-        </button>
-      </div>
-      <p className="text-xs text-white/40 mb-4">Cargos a clientes, abonos y antigüedad de saldos.</p>
+      <PageHeader
+        titulo="Cuentas por cobrar"
+        meta="Cargos a clientes, abonos y antigüedad de saldos."
+        acciones={
+          <button onClick={() => setMostrarForm(true)} className="rounded-lg bg-[var(--color-blue-5)] text-white text-xs font-semibold px-3 py-1.5 hover:bg-[var(--color-blue-6)]">
+            + Nuevo cargo
+          </button>
+        }
+      />
 
       {error && <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">{error}</p>}
 
@@ -278,13 +290,14 @@ export default function CxCPage() {
         <div className="rounded-2xl border border-white/10 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-white/5 text-left text-white/50 text-[11px] uppercase tracking-wide">
-                <th className="px-4 py-2 font-medium">Cliente</th>
-                <th className="px-4 py-2 font-medium">Concepto</th>
-                <th className="px-4 py-2 font-medium">Vence</th>
-                <th className="px-4 py-2 font-medium text-right">Total</th>
-                <th className="px-4 py-2 font-medium text-right">Saldo</th>
-                <th className="px-4 py-2 font-medium"></th>
+              <tr>
+                <Th>Cliente</Th>
+                <Th>Concepto</Th>
+                <Th>Estado</Th>
+                <Th>Vence</Th>
+                <Th className="text-right">Total</Th>
+                <Th className="text-right">Saldo</Th>
+                <Th></Th>
               </tr>
             </thead>
             <tbody>
@@ -292,6 +305,9 @@ export default function CxCPage() {
                 <tr key={f.id} className="border-t border-white/5 hover:bg-white/[0.03]">
                   <td className="px-4 py-2.5 text-white">{nombreCliente(f.cliente_id)}</td>
                   <td className="px-4 py-2.5 text-white/60 text-xs">{f.concepto}</td>
+                  <td className="px-4 py-2.5">
+                    <EstadoBadge {...estadoCargo(f)} />
+                  </td>
                   <td className="px-4 py-2.5 text-xs">
                     {f.fecha_vencimiento ? (
                       <span className={f.vencido ? 'text-red-400' : f.diasParaVencer !== null && f.diasParaVencer <= 7 ? 'text-amber-400' : 'text-white/50'}>
