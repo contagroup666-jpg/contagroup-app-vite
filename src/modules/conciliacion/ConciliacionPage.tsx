@@ -291,7 +291,11 @@ export default function ConciliacionPage() {
   }
 
   async function insertarMovimientos(filas: { fecha: string; descripcion: string; monto: number }[], lote: string) {
-    if (!empresaId || filas.length === 0) return
+    if (!empresaId) return
+    if (filas.length === 0) {
+      setError('El archivo no tiene filas válidas para importar. Revisa que tenga encabezado y columnas fecha,descripcion,monto.')
+      return
+    }
     const { error: err } = await supabase.from('conciliacion_movimientos').insert(
       filas.map((f) => ({
         empresa_id: empresaId,
@@ -304,8 +308,11 @@ export default function ConciliacionPage() {
         creado_por: perfil?.id ?? null,
       }))
     )
-    if (err) setError(err.message)
+    // cargar() resetea el error a null si el SELECT posterior sale bien, así
+    // que el error del INSERT se fija DESPUÉS de recargar — si no, un fallo
+    // al guardar quedaba invisible para el usuario (parecía que "no hacía nada").
     await cargar()
+    if (err) setError(`No se pudo importar: ${err.message}`)
   }
 
   function manejarCSV(input: HTMLInputElement) {
