@@ -290,10 +290,10 @@ export default function ConciliacionPage() {
     await cargar()
   }
 
-  async function insertarMovimientos(filas: { fecha: string; descripcion: string; monto: number }[], lote: string) {
+  async function insertarMovimientos(filas: { fecha: string; descripcion: string; monto: number }[], lote: string, advertencia?: string) {
     if (!empresaId) return
     if (filas.length === 0) {
-      setError('El archivo no tiene filas válidas para importar. Revisa que tenga encabezado y columnas fecha,descripcion,monto.')
+      setError(advertencia || 'El archivo no tiene filas válidas para importar. Revisa que tenga encabezado y columnas fecha,descripcion,monto.')
       return
     }
     const { error: err } = await supabase.from('conciliacion_movimientos').insert(
@@ -309,10 +309,27 @@ export default function ConciliacionPage() {
       }))
     )
     // cargar() resetea el error a null si el SELECT posterior sale bien, así
-    // que el error del INSERT se fija DESPUÉS de recargar — si no, un fallo
-    // al guardar quedaba invisible para el usuario (parecía que "no hacía nada").
+    // que el error del INSERT (o la advertencia de filas descartadas) se fija
+    // DESPUÉS de recargar — si no, un fallo al guardar quedaba invisible para
+    // el usuario (parecía que "no hacía nada").
     await cargar()
     if (err) setError(`No se pudo importar: ${err.message}`)
+    else if (advertencia) setError(advertencia)
+  }
+
+  // Normaliza fecha a YYYY-MM-DD (formato que Postgres espera). Un CSV hecho
+  // a mano o exportado de Excel en Ecuador casi siempre trae DD/MM/AAAA o
+  // DD-MM-AAAA — si se manda tal cual, Postgres lo rechaza (columna `fecha`
+  // es tipo `date`) y antes esa falla quedaba invisible por el bug de arriba.
+  function normalizarFecha(valor: string): string | null {
+    const v = valor.trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v // ya está en ISO
+    const conBarra = v.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+    if (conBarra) {
+      const [, d, m, y] = conBarra
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+    }
+    return null
   }
 
   function manejarCSV(input: HTMLInputElement) {
@@ -322,14 +339,19 @@ export default function ConciliacionPage() {
     reader.onload = async (e) => {
       const texto = String(e.target?.result || '')
       const lineas = texto.split('\n').slice(1)
+      let fechasInvalidas = 0
       const filas = lineas
         .filter((l) => l.trim())
         .map((l) => {
           const partes = l.split(',')
-          return { fecha: (partes[0] || '').trim(), descripcion: (partes[1] || 'Sin descripción').trim(), monto: parseFloat(partes[2]) || 0 }
+          const fechaOriginal = (partes[0] || '').trim()
+          const fecha = fechaOriginal ? normalizarFecha(fechaOriginal) : null
+          if (fechaOriginal && !fecha) fechasInvalidas++
+          return { fecha: fecha ?? '', descripcion: (partes[1] || 'Sin descripción').trim(), monto: parseFloat(partes[2]) || 0 }
         })
         .filter((f) => f.fecha)
-      await insertarMovimientos(filas, file.name)
+      const advertencia = fechasInvalidas > 0 ? `${fechasInvalidas} fila(s) del CSV tienen una fecha en formato no reconocido y no se importaron. Usa AAAA-MM-DD o DD/MM/AAAA.` : undefined
+      await insertarMovimientos(filas, file.name, advertencia)
       input.value = ''
     }
     reader.readAsText(file)
