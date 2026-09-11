@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabaseClient'
 import { crearAsiento } from '../../lib/contabilidad'
 import { useAuth } from '../../context/AuthContext'
@@ -317,12 +318,24 @@ export default function ConciliacionPage() {
     else if (advertencia) setError(advertencia)
   }
 
-  // Normaliza fecha a YYYY-MM-DD (formato que Postgres espera). Un CSV hecho
-  // a mano o exportado de Excel en Ecuador casi siempre trae DD/MM/AAAA o
-  // DD-MM-AAAA — si se manda tal cual, Postgres lo rechaza (columna `fecha`
-  // es tipo `date`) y antes esa falla quedaba invisible por el bug de arriba.
-  function normalizarFecha(valor: string): string | null {
-    const v = valor.trim()
+  // Normaliza fecha a YYYY-MM-DD (formato que Postgres espera). Acepta texto
+  // (un CSV hecho a mano o exportado de Excel en Ecuador casi siempre trae
+  // DD/MM/AAAA o DD-MM-AAAA) y celdas de fecha reales de Excel (Date, o el
+  // número de serie de Excel si la celda no venía con formato de fecha) — si
+  // se manda tal cual al backend, Postgres rechaza cualquier cosa que no sea
+  // AAAA-MM-DD (columna `fecha` es tipo `date`), y antes esa falla quedaba
+  // invisible por el bug de arriba.
+  function normalizarFecha(valor: unknown): string | null {
+    if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+      return `${valor.getFullYear()}-${String(valor.getMonth() + 1).padStart(2, '0')}-${String(valor.getDate()).padStart(2, '0')}`
+    }
+    if (typeof valor === 'number' && Number.isFinite(valor)) {
+      const d = XLSX.SSF.parse_date_code(valor)
+      if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`
+      return null
+    }
+    const v = String(valor ?? '').trim()
+    if (!v) return null
     if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v // ya está en ISO
     const conBarra = v.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
     if (conBarra) {
@@ -332,29 +345,51 @@ export default function ConciliacionPage() {
     return null
   }
 
-  function manejarCSV(input: HTMLInputElement) {
+  // Convierte filas crudas (de CSV o de una hoja de Excel) al formato que
+  // insertarMovimientos espera, contando las que se descartan por fecha
+  // ilegible para avisarle al usuario en vez de fallar en silencio.
+  function filasAMovimientos(filas: unknown[][]): { movs: { fecha: string; descripcion: string; monto: number }[]; descartadas: number } {
+    let descartadas = 0
+    const movs = filas
+      .filter((f) => f.some((c) => c !== null && c !== undefined && String(c).trim() !== ''))
+      .map((f) => {
+        const fechaOriginal = f[0]
+        const fecha = normalizarFecha(fechaOriginal)
+        if (fechaOriginal != null && String(fechaOriginal).trim() !== '' && !fecha) descartadas++
+        const montoRaw = f[2]
+        const monto = typeof montoRaw === 'number' ? montoRaw : parseFloat(String(montoRaw ?? '').replace(/,/g, '')) || 0
+        return { fecha: fecha ?? '', descripcion: String(f[1] ?? 'Sin descripción').trim(), monto }
+      })
+      .filter((f) => f.fecha)
+    return { movs, descartadas }
+  }
+
+  function manejarArchivo(input: HTMLInputElement) {
     const file = input.files?.[0]
     if (!file) return
+    const esExcel = /\.(xlsx|xls)$/i.test(file.name)
     const reader = new FileReader()
     reader.onload = async (e) => {
-      const texto = String(e.target?.result || '')
-      const lineas = texto.split('\n').slice(1)
-      let fechasInvalidas = 0
-      const filas = lineas
-        .filter((l) => l.trim())
-        .map((l) => {
-          const partes = l.split(',')
-          const fechaOriginal = (partes[0] || '').trim()
-          const fecha = fechaOriginal ? normalizarFecha(fechaOriginal) : null
-          if (fechaOriginal && !fecha) fechasInvalidas++
-          return { fecha: fecha ?? '', descripcion: (partes[1] || 'Sin descripción').trim(), monto: parseFloat(partes[2]) || 0 }
-        })
-        .filter((f) => f.fecha)
-      const advertencia = fechasInvalidas > 0 ? `${fechasInvalidas} fila(s) del CSV tienen una fecha en formato no reconocido y no se importaron. Usa AAAA-MM-DD o DD/MM/AAAA.` : undefined
-      await insertarMovimientos(filas, file.name, advertencia)
+      let filasCrudas: unknown[][]
+      if (esExcel) {
+        const wb = XLSX.read(e.target?.result, { type: 'array', cellDates: true })
+        const hoja = wb.Sheets[wb.SheetNames[0]]
+        filasCrudas = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, blankrows: false }).slice(1)
+      } else {
+        const texto = String(e.target?.result || '')
+        filasCrudas = texto
+          .split('\n')
+          .slice(1)
+          .filter((l) => l.trim())
+          .map((l) => l.split(','))
+      }
+      const { movs, descartadas } = filasAMovimientos(filasCrudas)
+      const advertencia = descartadas > 0 ? `${descartadas} fila(s) tienen una fecha en formato no reconocido y no se importaron. Usa AAAA-MM-DD o DD/MM/AAAA.` : undefined
+      await insertarMovimientos(movs, file.name, advertencia)
       input.value = ''
     }
-    reader.readAsText(file)
+    if (esExcel) reader.readAsArrayBuffer(file)
+    else reader.readAsText(file)
   }
 
   async function cargarEjemploDemo() {
@@ -483,7 +518,12 @@ export default function ConciliacionPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             <div className="rounded-2xl border border-white/10 p-4">
               <p className="text-xs font-medium text-white/60 mb-2">📂 Importar estado de cuenta</p>
-              <p className="text-[11px] text-white/40 mb-2">Formato CSV: fecha,descripcion,monto (con encabezado)</p>
+              <p className="text-[11px] text-white/40 mb-2">Columnas: fecha, descripcion, monto (con encabezado) — CSV o Excel (.xlsx)</p>
+              {movimientos.length > 0 && (
+                <button onClick={limpiarTodo} className="text-[11px] text-amber-300 hover:text-red-400 mb-2 block">
+                  🗑 Limpiar todo lo importado y empezar de nuevo
+                </button>
+              )}
               {cuentasBancarias.length > 0 && (
                 <select
                   value={cuentaBancariaImport}
@@ -498,7 +538,7 @@ export default function ConciliacionPage() {
                   ))}
                 </select>
               )}
-              <input type="file" accept=".csv" onChange={(e) => manejarCSV(e.target)} className="w-full text-xs text-white/60 mb-2" />
+              <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => manejarArchivo(e.target)} className="w-full text-xs text-white/60 mb-2" />
               <button onClick={cargarEjemploDemo} className="w-full rounded-lg border border-white/10 text-white/60 text-xs font-semibold py-1.5 hover:bg-white/5">
                 📋 Cargar ejemplo demo
               </button>
